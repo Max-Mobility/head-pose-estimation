@@ -118,20 +118,20 @@ def main():
             pose = pose_estimator.solve_pose_by_68_points(marks)
 
             # Stabilize the pose.
-            stabile_pose = []
+            stable_pose = []
             pose_np = np.array(pose).flatten()
             for value, ps_stb in zip(pose_np, pose_stabilizers):
                 ps_stb.update([value])
-                stabile_pose.append(ps_stb.state[0])
-            stabile_pose = np.reshape(stabile_pose, (-1, 3))
+                stable_pose.append(ps_stb.state[0])
+            stable_pose = np.reshape(stable_pose, (-1, 3))
 
             # Uncomment following line to draw pose annotaion on frame.
             # pose_estimator.draw_annotation_box(
             #     frame, pose[0], pose[1], color=(255, 128, 128))
 
-            # Uncomment following line to draw stabile pose annotaion on frame.
+            # Uncomment following line to draw stable pose annotaion on frame.
             pose_estimator.draw_annotation_box(
-                frame, stabile_pose[0], stabile_pose[1], color=(128, 255, 128))
+                frame, stable_pose[0], stable_pose[1], color=(128, 255, 128))
 
         # Show preview.
         cv2.imshow("Preview", frame)
