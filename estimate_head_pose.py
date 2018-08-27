@@ -6,12 +6,13 @@ Neural Network trained with TensorFlow. After that, head pose is estimated
 by solving a PnP problem.
 """
 from multiprocessing import Process, Queue
+import threading
 
 import numpy as np
 
 import cv2
 from mark_detector import MarkDetector
-from os_detector import detect_os
+from os_detector import detect_os, isWindows
 from pose_estimator import PoseEstimator
 from stabilizer import Stabilizer
 
@@ -43,9 +44,15 @@ def main():
     img_queue = Queue()
     box_queue = Queue()
     img_queue.put(sample_frame)
-    box_process = Process(target=get_face, args=(
-        mark_detector, img_queue, box_queue,))
-    box_process.start()
+
+    if isWindows():
+        thread = threading.Thread(target=get_face, args=(mark_detector, img_queue, box_queue))
+        thread.daemon = True
+        thread.start()
+    else:
+        box_process = Process(target=get_face,
+                              args=(mark_detector, img_queue, box_queue))
+        box_process.start()
 
     # Introduce pose estimator to solve pose. Get one frame to setup the
     # estimator according to the image size.
@@ -97,8 +104,8 @@ def main():
             marks[:, 1] += facebox[1]
 
             # Uncomment following line to show raw marks.
-            # mark_detector.draw_marks(
-            #     frame, marks, color=(0, 255, 0))
+            #mark_detector.draw_marks(
+            #    frame, marks, color=(0, 255, 0))
 
             # Try pose estimation with 68 points.
             pose = pose_estimator.solve_pose_by_68_points(marks)
@@ -125,8 +132,9 @@ def main():
             break
 
     # Clean up the multiprocessing process.
-    box_process.terminate()
-    box_process.join()
+    if not isWindows():
+        box_process.terminate()
+        box_process.join()
 
 
 if __name__ == '__main__':
