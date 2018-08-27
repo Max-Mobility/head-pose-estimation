@@ -8,6 +8,7 @@ by solving a PnP problem.
 from multiprocessing import Process, Queue
 import threading
 
+import argparse
 import numpy as np
 
 import cv2
@@ -31,6 +32,12 @@ def get_face(detector, img_queue, box_queue):
 
 
 def main():
+    # construct the argument parse and parse the arguments
+    ap = argparse.ArgumentParser()
+    ap.add_argument("-m", "--draw-markers", type=bool, default=False,
+                    help="")
+    args = vars(ap.parse_args())
+
     """MAIN"""
     # Video source from webcam or video file.
     video_src = 0
@@ -103,9 +110,9 @@ def main():
             marks[:, 0] += facebox[0]
             marks[:, 1] += facebox[1]
 
-            # Uncomment following line to show raw marks.
-            #mark_detector.draw_marks(
-            #    frame, marks, color=(0, 255, 0))
+            if args["draw_markers"]:
+                mark_detector.draw_marks(
+                    frame, marks, color=(0, 255, 0))
 
             # Try pose estimation with 68 points.
             pose = pose_estimator.solve_pose_by_68_points(marks)
