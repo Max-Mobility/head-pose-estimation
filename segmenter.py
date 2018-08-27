@@ -48,9 +48,9 @@ class Segmenter:
     def getFaceGrid(self):
         bb = self.faceBB
         x = int(bb[0])
-        y = int(bb[2])
-        w = int(bb[1] - bb[0])
-        h = int(bb[3] - bb[2])
+        y = int(bb[1])
+        w = int(bb[2] - bb[0])
+        h = int(bb[3] - bb[1])
         #Create array of zeros
         faceGrid = np.zeros((self.height, self.width))
 
