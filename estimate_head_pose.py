@@ -20,6 +20,8 @@ from mark_detector import MarkDetector
 from pose_estimator import PoseEstimator
 from stabilizer import Stabilizer
 
+from segmenter import Segmenter
+
 CNN_INPUT_SIZE = 128
 
 
@@ -41,6 +43,8 @@ def main():
     ap.add_argument("-p", "--draw-pose", action="store_false", default=True,
                     help="")
     ap.add_argument("-u", "--draw-unstable", action="store_true", default=False,
+                    help="")
+    ap.add_argument("-s", "--draw-segmented", action="store_true", default=False,
                     help="")
     args = vars(ap.parse_args())
 
@@ -119,6 +123,11 @@ def main():
             marks *= (facebox[2] - facebox[0])
             marks[:, 0] += facebox[0]
             marks[:, 1] += facebox[1]
+
+            # segment the image based on markers and facebox
+            seg = Segmenter(facebox, marks, frame.shape[0], frame.shape[1])
+            if args["draw_segmented"]:
+                mark_detector.draw_box(frame, seg.segment())
 
             if args["draw_markers"]:
                 mark_detector.draw_marks(
