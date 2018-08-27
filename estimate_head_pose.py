@@ -125,9 +125,9 @@ def main():
             marks[:, 1] += facebox[1]
 
             # segment the image based on markers and facebox
-            seg = Segmenter(facebox, marks, frame.shape[0], frame.shape[1])
+            seg = Segmenter(facebox, marks, frame.shape[1], frame.shape[0])
             if args["draw_segmented"]:
-                mark_detector.draw_box(frame, seg.segment())
+                mark_detector.draw_box(frame, seg.getSegmentBBs())
 
             if args["draw_markers"]:
                 mark_detector.draw_marks(

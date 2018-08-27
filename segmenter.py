@@ -29,6 +29,9 @@ class Segmenter:
             faceBox[2] - diff + px + xo,
             faceBox[3] - diff + py + yo
         ]
+        self.leBB = self.getLeftEyeBB()
+        self.reBB = self.getRightEyeBB()
+        self.faceGrid = self.getFaceGrid()
 
     def makeBB(self, kp, px=0, py=0):
         x = [x[0] for x in kp]
@@ -36,13 +39,13 @@ class Segmenter:
         bbox = max(np.min(x) - px, 0), max(np.min(y) - py, 0), min(np.max(x) + px, self.width), min(np.max(y) + py, self.height)
         return MarkDetector.get_square_box([int(x) for x in bbox])
 
-    def leftEyeBB(self):
+    def getLeftEyeBB(self):
         return self.makeBB(self.marks[42:48], 10, 0)
 
-    def rightEyeBB(self):
+    def getRightEyeBB(self):
         return self.makeBB(self.marks[36:42], 10, 0)
 
-    def faceGrid(self):
+    def getFaceGrid(self):
         bb = self.faceBB
         x = int(bb[0])
         y = int(bb[2])
@@ -69,19 +72,19 @@ class Segmenter:
         return faceGrid
 
     def segment(self):
+        return {
+            'leftEye': self.leBB,
+            'rightEye': self.reBB,
+            'face': self.faceBB,
+            'faceGrid': self.faceGrid
+        }
+
+    def getSegmentBBs(self):
         return [
-            self.leftEyeBB(),
-            self.rightEyeBB(),
+            self.leBB,
+            self.reBB,
             self.faceBB
         ]
-        '''
-        return {
-            'leftEye': self.leftEyeBB(),
-            'rightEye': self.rightEyeBB(),
-            'face': self.faceBB,
-            'faceGrid': self.faceGrid()
-        }
-        '''
 
 def main():
 
