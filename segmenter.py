@@ -78,7 +78,7 @@ class Segmenter:
         return {
             'leftEye': self.leftEyeBB(),
             'rightEye': self.rightEyeBB(),
-            'face': self.faceBB(),
+            'face': self.faceBB,
             'faceGrid': self.faceGrid()
         }
         '''
