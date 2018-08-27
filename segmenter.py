@@ -37,7 +37,7 @@ class Segmenter:
         x = [x[0] for x in kp]
         y = [x[1] for x in kp]
         bbox = max(np.min(x) - px, 0), max(np.min(y) - py, 0), min(np.max(x) + px, self.width), min(np.max(y) + py, self.height)
-        return MarkDetector.get_square_box([int(x) for x in bbox])
+        return MarkDetector.get_square_box([int(x) for x in bbox], [self.height, self.width])
 
     def getLeftEyeBB(self):
         return self.makeBB(self.marks[42:48], 10, 0)

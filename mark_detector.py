@@ -37,7 +37,7 @@ class FaceDetector:
                 y_right_top = int(result[6] * rows)
                 confidences.append(confidence)
                 faceboxes.append(
-                    [x_left_bottom, y_left_bottom, x_right_top, y_right_top])
+                    [max(x_left_bottom,0), max(y_left_bottom,0), min(x_right_top,cols), min(y_right_top, rows)])
 
         self.detection_result = [faceboxes, confidences]
 
@@ -118,7 +118,7 @@ class MarkDetector:
         return [left_x, top_y, right_x, bottom_y]
 
     @staticmethod
-    def get_square_box(box):
+    def get_square_box(box, imageShape):
         """Get a square box out of the given box, by expanding it."""
         left_x = box[0]
         top_y = box[1]
@@ -148,7 +148,7 @@ class MarkDetector:
         # Make sure box is always square.
         assert ((right_x - left_x) == (bottom_y - top_y)), 'Box is not square.'
 
-        return [left_x, top_y, right_x, bottom_y]
+        return [max(left_x, 0), max(top_y, 0), min(right_x, imageShape[1]), min(bottom_y, imageShape[0])]
 
     @staticmethod
     def box_in_image(box, image):
@@ -169,7 +169,7 @@ class MarkDetector:
             box_moved = self.move_box(box, [0, offset_y])
 
             # Make box square.
-            facebox = self.get_square_box(box_moved)
+            facebox = self.get_square_box(box_moved, image.shape)
 
             #if self.box_in_image(facebox, image):
             return facebox, confidences[raw_boxes.index(box)]
