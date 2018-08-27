@@ -84,9 +84,9 @@ class Segmenter:
         '''
 
 def main():
+
     import argparse
     from os_detector import detect_os, isWindows
-    # multiprocessing may not work on Windows and macOS, check OS for safety.
     detect_os()
 
     from multiprocessing import Process, Queue
@@ -94,10 +94,91 @@ def main():
 
     from pose_estimator import PoseEstimator
 
+    # TODO: update this function to do all the processing and
+    #       serialization of new metadata file
+    def process_image(detector, img_queue, box_queue):
+        """Get face from image queue. This function is used for multiprocessing"""
+        while True:
+            image = img_queue.get()
+            box = detector.extract_cnn_facebox(image)
+            box_queue.put(box)
+
+    # parse arguments
     ap = argparse.ArgumentParser()
     ap.add_argument("-i", "--image-folder", type=str, default=".",
                     help="Folder where images are stored")
     args = vars(ap.parse_args())
+
+    # init variables
+    mark_detector = MarkDetector()
+
+    # Setup process and queues for multiprocessing.
+    img_queue = Queue()
+    box_queue = Queue()
+    img_queue.put(sample_frame)
+
+    if isWindows():
+        thread = threading.Thread(target=process_image, args=(mark_detector, img_queue, box_queue))
+        thread.daemon = True
+        thread.start()
+    else:
+        box_process = Process(target=process_image,
+                              args=(mark_detector, img_queue, box_queue))
+        box_process.start()
+
+    height, width = (480, 640) # all MIT data is this shape
+    pose_estimator = PoseEstimator(img_size=(height, width))
+
+    # TODO: find better way to control multiprocessing and memory usage
+    max_queue_size = 100
+    # TODO: read number of images from filesystem
+    num_images = 100
+    num_images_processed = 0
+    # TODO: load images from dataset (iteratively, may not fit
+    #       everything in memory) - need better performance for this
+    while True:
+        if len(img_queue) < max_queue_size:
+            # TODO: get image from disk
+
+            # feed image into image queue.
+            img_queue.put(frame)
+
+        # Get face from box queue.
+        result = box_queue.get()
+
+        if result is not None:
+            # TODO: for each image run
+            #        - mark_detector.extract_cnn_facebox(image)
+            #        - get face image from image
+
+            # unpack result
+            facebox, confidence = result
+            # Detect landmarks from image of 128x128.
+            face_img = frame[facebox[1]: facebox[3],
+                             facebox[0]: facebox[2]]
+            face_img = cv2.resize(face_img, (CNN_INPUT_SIZE, CNN_INPUT_SIZE))
+            face_img = cv2.cvtColor(face_img, cv2.COLOR_BGR2RGB)
+            marks = mark_detector.detect_marks(face_img)
+
+            # Convert the marks locations from local CNN to global image.
+            marks *= (facebox[2] - facebox[0])
+            marks[:, 0] += facebox[0]
+            marks[:, 1] += facebox[1]
+
+            # segment the image based on markers and facebox
+            seg = Segmenter(facebox, marks, frame.shape[0], frame.shape[1])
+
+            # wait here to make sure we don't loop too fast?
+            cv2.waitKey(10)
+
+            num_images_processed += 1
+            if num_images_processed > num_images:
+                break;
+
+    # clean up process
+    if not isWindows():
+        box_process.terminate()
+        box_process.join()
 
 
 if __name__ == '__main__':
