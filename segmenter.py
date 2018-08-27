@@ -46,13 +46,26 @@ class Segmenter:
         return self.makeBB(self.marks[36:42], 10, 0)
 
     def getFaceGrid(self):
+        # make sure the facegrid is square
+        # (pad with zeroes on each side)
+        size = max(self.height, self.width)
+        #Create array of zeros
+        faceGrid = np.zeros((size, size))
+        diff = self.height - self.width
+        ox = 0
+        oy = 0
+        # compute offsets from squaring
+        if diff > 0: # height > width
+            ox = int(abs(diff) / 2)
+        elif diff < 0: # height < width
+            oy = int(abs(diff) / 2)
+        # get the face bounding box
         bb = self.faceBB
-        x = int(bb[0])
-        y = int(bb[1])
+        # make sure to use any offsets from making the image square
+        x = int(bb[0] + ox)
+        y = int(bb[1] + oy)
         w = int(bb[2] - bb[0])
         h = int(bb[3] - bb[1])
-        #Create array of zeros
-        faceGrid = np.zeros((self.height, self.width))
 
         xBound = int(x+w)
         yBound = int(y+h)
@@ -61,10 +74,10 @@ class Segmenter:
             x = 0
         if(y < 0):
             y = 0
-        if(xBound > self.width):
-            xBound = self.width
-        if(yBound > self.height):
-            yBound = self.height
+        if(xBound > size):
+            xBound = size
+        if(yBound > size):
+            yBound = size
 
         for i in range(x,xBound):
             for j in range(y,yBound):
