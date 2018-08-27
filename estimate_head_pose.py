@@ -5,6 +5,10 @@ detection. The facial landmark detection is done by a custom Convolutional
 Neural Network trained with TensorFlow. After that, head pose is estimated
 by solving a PnP problem.
 """
+from os_detector import detect_os, isWindows
+# multiprocessing may not work on Windows and macOS, check OS for safety.
+detect_os()
+
 from multiprocessing import Process, Queue
 import threading
 
@@ -13,12 +17,8 @@ import numpy as np
 
 import cv2
 from mark_detector import MarkDetector
-from os_detector import detect_os, isWindows
 from pose_estimator import PoseEstimator
 from stabilizer import Stabilizer
-
-# multiprocessing may not work on Windows and macOS, check OS for safety.
-detect_os()
 
 CNN_INPUT_SIZE = 128
 
@@ -34,7 +34,13 @@ def get_face(detector, img_queue, box_queue):
 def main():
     # construct the argument parse and parse the arguments
     ap = argparse.ArgumentParser()
-    ap.add_argument("-m", "--draw-markers", type=bool, default=False,
+    ap.add_argument("-m", "--draw-markers", action="store_true", default=False,
+                    help="")
+    ap.add_argument("-c", "--draw-confidence", action="store_true", default=False,
+                    help="")
+    ap.add_argument("-p", "--draw-pose", action="store_false", default=True,
+                    help="")
+    ap.add_argument("-u", "--draw-unstable", action="store_true", default=False,
                     help="")
     args = vars(ap.parse_args())
 
@@ -95,9 +101,13 @@ def main():
         img_queue.put(frame)
 
         # Get face from box queue.
-        facebox = box_queue.get()
+        result = box_queue.get()
 
-        if facebox is not None:
+        if result is not None:
+            if args["draw_confidence"]:
+                mark_detector.face_detector.draw_result(frame, result)
+            # unpack result
+            facebox, confidence = result
             # Detect landmarks from image of 128x128.
             face_img = frame[facebox[1]: facebox[3],
                              facebox[0]: facebox[2]]
@@ -125,13 +135,13 @@ def main():
                 stable_pose.append(ps_stb.state[0])
             stable_pose = np.reshape(stable_pose, (-1, 3))
 
-            # Uncomment following line to draw pose annotaion on frame.
-            # pose_estimator.draw_annotation_box(
-            #     frame, pose[0], pose[1], color=(255, 128, 128))
+            if args["draw_unstable"]:
+                pose_estimator.draw_annotation_box(
+                    frame, pose[0], pose[1], color=(255, 128, 128))
 
-            # Uncomment following line to draw stable pose annotaion on frame.
-            pose_estimator.draw_annotation_box(
-                frame, stable_pose[0], stable_pose[1], color=(128, 255, 128))
+            if args["draw_pose"]:
+                pose_estimator.draw_annotation_box(
+                    frame, stable_pose[0], stable_pose[1], color=(128, 255, 128))
 
         # Show preview.
         cv2.imshow("Preview", frame)

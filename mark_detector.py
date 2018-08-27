@@ -59,6 +59,23 @@ class FaceDetector:
             cv2.putText(image, label, (facebox[0], facebox[1]),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0))
 
+    @staticmethod
+    def draw_result(image, result):
+        facebox = result[0]
+        conf = result[1]
+        cv2.rectangle(image, (facebox[0], facebox[1]),
+                      (facebox[2], facebox[3]), (0, 255, 0))
+        label = "face: %.4f" % conf
+        label_size, base_line = cv2.getTextSize(
+            label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+
+        cv2.rectangle(image, (facebox[0], facebox[1] - label_size[1]),
+                      (facebox[0] + label_size[0],
+                       facebox[1] + base_line),
+                      (0, 255, 0), cv2.FILLED)
+        cv2.putText(image, label, (facebox[0], facebox[1]),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0))
+
 
 class MarkDetector:
     """Facial landmark detector by Convolutional Neural Network"""
@@ -142,7 +159,7 @@ class MarkDetector:
 
     def extract_cnn_facebox(self, image):
         """Extract face area from image."""
-        _, raw_boxes = self.face_detector.get_faceboxes(
+        confidences, raw_boxes = self.face_detector.get_faceboxes(
             image=image, threshold=0.9)
 
         for box in raw_boxes:
@@ -154,8 +171,8 @@ class MarkDetector:
             # Make box square.
             facebox = self.get_square_box(box_moved)
 
-            if self.box_in_image(facebox, image):
-                return facebox
+            #if self.box_in_image(facebox, image):
+            return facebox, confidences[raw_boxes.index(box)]
 
         return None
 
