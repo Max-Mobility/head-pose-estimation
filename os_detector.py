@@ -14,6 +14,7 @@ def detect_os(bypass=False):
         print("Linux is fine! Python multiprocessing works.")
 
 def isWindows():
+    global os_name
     if os_name in ["UNKNOWN"]:
         os_name = system()
     return os_name in ['Windows']
