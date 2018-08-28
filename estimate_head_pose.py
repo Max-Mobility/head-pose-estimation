@@ -133,7 +133,7 @@ def main():
             seg = Segmenter(facebox, marks, frame.shape[1], frame.shape[0])
             if args["draw_segmented"]:
                 mark_detector.draw_box(frame, seg.getSegmentBBs())
-                cv2.imshow("fg", seg.segment()["faceGrid"])
+                cv2.imshow("fg", seg.getSegmentJSON()["faceGrid"])
 
             if args["draw_markers"]:
                 mark_detector.draw_marks(
