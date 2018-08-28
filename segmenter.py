@@ -156,22 +156,22 @@ class Subject:
         self.leftEyeJSON['Y'].append(0)
         self.leftEyeJSON['W'].append(0)
         self.leftEyeJSON['H'].append(0)
-        self.leftEyeJSON['isValid'].append(False)
+        self.leftEyeJSON['isValid'].append(0)
         self.rightEyeJSON['X'].append(0)
         self.rightEyeJSON['Y'].append(0)
         self.rightEyeJSON['W'].append(0)
         self.rightEyeJSON['H'].append(0)
-        self.rightEyeJSON['isValid'].append(False)
+        self.rightEyeJSON['isValid'].append(0)
         self.faceJSON['X'].append(0)
         self.faceJSON['Y'].append(0)
         self.faceJSON['W'].append(0)
         self.faceJSON['H'].append(0)
-        self.faceJSON['isValid'].append(False)
+        self.faceJSON['isValid'].append(0)
         self.faceGridJSON['X'].append(0)
         self.faceGridJSON['Y'].append(0)
         self.faceGridJSON['W'].append(0)
         self.faceGridJSON['H'].append(0)
-        self.faceGridJSON['isValid'].append(False)
+        self.faceGridJSON['isValid'].append(0)
         if segmentJSON is not None:
             # update leftEyeJSON
             le = segmentJSON["leftEye"]
@@ -179,21 +179,21 @@ class Subject:
             self.leftEyeJSON['Y'][index] = le[1]
             self.leftEyeJSON['W'][index] = le[2] - le[0]
             self.leftEyeJSON['H'][index] = le[3] - le[1]
-            self.leftEyeJSON['isValid'][index] = True
+            self.leftEyeJSON['isValid'][index] = 1
             # update rightEyeJSON
             re = segmentJSON["rightEye"]
             self.rightEyeJSON['X'][index] = re[0]
             self.rightEyeJSON['Y'][index] = re[1]
             self.rightEyeJSON['W'][index] = re[2] - re[0]
             self.rightEyeJSON['H'][index] = re[3] - re[1]
-            self.rightEyeJSON['isValid'][index] = True
+            self.rightEyeJSON['isValid'][index] = 1
             # update faceJSON
             f = segmentJSON["face"]
             self.faceJSON['X'][index] = f[0]
             self.faceJSON['Y'][index] = f[1]
             self.faceJSON['W'][index] = f[2] - f[0]
             self.faceJSON['H'][index] = f[3] - f[1]
-            self.faceJSON['isValid'][index] = True
+            self.faceJSON['isValid'][index] = 1
             # update faceGridJSON
             # Note: FG is 1-indexed, so we must add one
             fg = segmentJSON["faceGridBB"]
@@ -201,7 +201,7 @@ class Subject:
             self.faceGridJSON['Y'][index] = fg[1] + 1
             self.faceGridJSON['W'][index] = fg[2] - fg[0]
             self.faceGridJSON['H'][index] = fg[3] - fg[1]
-            self.faceGridJSON['isValid'][index] = True
+            self.faceGridJSON['isValid'][index] = 1
 
     def writeSegmentFiles(self, folder):
         fullDir = self.path + '/' + folder
