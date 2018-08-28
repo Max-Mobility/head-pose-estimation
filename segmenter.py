@@ -400,7 +400,7 @@ def main():
 
 
     # TODO: might need better control over memory management
-    max_queue_size = 10
+    max_queue_size = parallelization * 2
     while True:
         if sub_queue.qsize() < max_queue_size and num_subjects_processed < num_subjects:
             subDir = subjectDirs[num_subjects_processed]
