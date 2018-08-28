@@ -275,87 +275,91 @@ def main():
     from multiprocessing import Process, Queue
     import threading
 
+    # init shared variables
     conf_threshold = 0.1
     CNN_INPUT_SIZE = 128
 
     def process_subject(done_queue, sub_queue):
         """Get subject from subject queue. This function is used for multiprocessing"""
-        # init variables
+        # init process/thread variables
         detector = MarkDetector()
+        timeout = 1
+        while True:
+            try:
+                # get subject from queue
+                subject = sub_queue.get(timeout=timeout)
+            except Queue.Empty as inst:
+                print("sub_queue timeout")
+                break;
+            subjectPath = subject.path
+            subjectID = subjectPath.split('/')[-1]
 
-        # get subject from queue
-        subject = sub_queue.get()
-        subjectPath = subject.path
-        subjectID = subjectPath.split('/')[-1]
+            print("Processing subject:",subjectID)
 
-        print("Processing subject:",subjectID)
+            # load MIT metadata
+            frameNames = subject.getFramesJSON()
+            # Collecting metadata about face, eyes, facegrid, labels
+            face = subject.getFaceJSON()
+            leftEye, rightEye = subject.getEyesJSON()
+            faceGrid = subject.getFaceGridJSON()
+            dotInfo = subject.getDotJSON()
 
-        # load MIT metadata
-        frameNames = subject.getFramesJSON()
-        # Collecting metadata about face, eyes, facegrid, labels
-        face = subject.getFaceJSON()
-        leftEye, rightEye = subject.getEyesJSON()
-        faceGrid = subject.getFaceGridJSON()
-        dotInfo = subject.getDotJSON()
+            # Iterate over frames for the current subject
+            for i, (frame, fv, lv, rv, fgv) in enumerate(zip(frameNames,
+                                                             face['IsValid'],
+                                                             leftEye['IsValid'],
+                                                             rightEye['IsValid'],
+                                                             faceGrid['IsValid'])):
+                # we'll need to make sure all frames are processed so
+                # we must call Subject::addSegments for every frame -
+                # it will set isValid to False if segmentJSON is None
+                segmentJSON = None
+                # Check if cur frame is valid
+                if(fv*lv*rv*fgv == 1):
+                    # Generate path for frame
+                    framePath = subjectPath + "/frames/" + frame
+                    # load image data
+                    image = subject.getImage(framePath)
+                    result = detector.extract_cnn_facebox(image, conf_threshold)
 
-        frameNum = 0
-        # Iterate over frames for the current subject
-        for i, (frame, fv, lv, rv, fgv) in enumerate(zip(frameNames,
-                                                         face['IsValid'],
-                                                         leftEye['IsValid'],
-                                                         rightEye['IsValid'],
-                                                         faceGrid['IsValid'])):
-            # we'll need to make sure all frames are processed so
-            # we must call Subject::addSegments for every frame -
-            # it will set isValid to False if segmentJSON is None
-            segmentJSON = None
-            # Check if cur frame is valid
-            if(fv*lv*rv*fgv == 1):
-                # Generate path for frame
-                framePath = subjectPath + "/frames/" + frame
-                # load image data
-                image = subject.getImage(framePath)
-                result = detector.extract_cnn_facebox(image, conf_threshold)
+                    if result is not None:
+                        # unpack result
+                        facebox, confidence = result
 
-                if result is not None:
-                    # unpack result
-                    facebox, confidence = result
+                        try:
+                            # fix facebox if needed
+                            if facebox[1] > facebox[3]:
+                                facebox[1] = 0
+                            if facebox[0] > facebox[2]:
+                                facebox[0] = 0
+                            # Detect landmarks from image of 128x128.
+                            face_img = image[facebox[1]: facebox[3],
+                                             facebox[0]: facebox[2]]
+                            face_img = cv2.resize(face_img, (CNN_INPUT_SIZE, CNN_INPUT_SIZE))
+                            face_img = cv2.cvtColor(face_img, cv2.COLOR_BGR2RGB)
+                            marks = detector.detect_marks(face_img)
 
-                    try:
-                        # fix facebox if needed
-                        if facebox[1] > facebox[3]:
-                            facebox[1] = 0
-                        if facebox[0] > facebox[2]:
-                            facebox[0] = 0
-                        # Detect landmarks from image of 128x128.
-                        face_img = image[facebox[1]: facebox[3],
-                                         facebox[0]: facebox[2]]
-                        face_img = cv2.resize(face_img, (CNN_INPUT_SIZE, CNN_INPUT_SIZE))
-                        face_img = cv2.cvtColor(face_img, cv2.COLOR_BGR2RGB)
-                        marks = detector.detect_marks(face_img)
+                            # Convert the marks locations from local CNN to global image.
+                            marks *= (facebox[2] - facebox[0])
+                            marks[:, 0] += facebox[0]
+                            marks[:, 1] += facebox[1]
 
-                        # Convert the marks locations from local CNN to global image.
-                        marks *= (facebox[2] - facebox[0])
-                        marks[:, 0] += facebox[0]
-                        marks[:, 1] += facebox[1]
+                            # segment the image based on markers and facebox
+                            seg = Segmenter(facebox, marks, image.shape[0], image.shape[1])
+                            segmentJSON = seg.getSegmentJSON()
+                        except cv2.error as inst:
+                            print("Error processing subject:", subjectID,'frame:', i, inst)
+                # add segment data to subject
+                subject.addSegments(i, segmentJSON)
 
-                        # segment the image based on markers and facebox
-                        seg = Segmenter(facebox, marks, image.shape[0], image.shape[1])
-                        segmentJSON = seg.getSegmentJSON()
-                    except cv2.error as inst:
-                        print("Error processing subject:", subjectID,'frame:', i, inst)
-                #Build the dictionary containing the metadata for a frame
-                frameNum += 1
-            # add segment data to subject
-            subject.addSegments(i, segmentJSON)
+            # write out the metadata file
+            folder = 'custom_segmentation'
+            subject.writeSegmentFiles(folder)
 
-        # write out the metadata file
-        folder = 'custom_segmentation'
-        subject.writeSegmentFiles(folder)
-
-        print("Finished processing subject:", subjectID)
+            print("Finished processing subject:", subjectID)
 
         # mark that we're done here!
+        print("processing thread done!")
         done_queue.put(True)
 
     # parse arguments
@@ -382,7 +386,8 @@ def main():
     tids = []
     if isWindows():
         for tid in range(parallelization):
-            thread = threading.Thread(target=process_subject, args=(done_queue, sub_queue))
+            thread = threading.Thread(target=process_subject,
+                                      args=(done_queue, sub_queue))
             thread.daemon = True
             thread.start()
             tids.append(thread)
@@ -404,14 +409,13 @@ def main():
             sub_queue.put(subject)
             # update the number of subjects we have processed
             num_subjects_processed += 1
-
+        else:
+            # wait to not take up cpu time
+            time.sleep(0.1)
         # are the threads done?
         if done_queue.qsize() >= len(tids):
             print("All threads done, exiting!")
             break;
-
-        # wait to not take up cpu time
-        time.sleep(0.1)
 
     # clean up process
     if not isWindows():
