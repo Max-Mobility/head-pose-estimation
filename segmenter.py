@@ -1,3 +1,4 @@
+import json
 import numpy as np
 import cv2
 from mark_detector import MarkDetector
@@ -84,6 +85,11 @@ class Segmenter:
                 faceGrid[j][i] = 1
         return faceGrid
 
+    def writeJSON(self, filename):
+        metadata = self.segment()
+        with open(filename) as f:
+            f.write(json.dumps(metadata, sort_keys=True, indent=4))
+
     def segment(self):
         return {
             'leftEye': self.leBB,
@@ -108,35 +114,58 @@ def main():
     from multiprocessing import Process, Queue
     import threading
 
+    conf_threshold = 0.9
+
     # TODO: update this function to do all the processing and
     #       serialization of new metadata file
-    def process_image(img_queue):
+    def process_subject(sub_queue):
         """Get face from image queue. This function is used for multiprocessing"""
         # init variables
         detector = MarkDetector()
 
         while True:
-            # get image from queue
-            image = img_queue.get()
-            facebox, confidence = detector.extract_cnn_facebox(image)
+            # get subject from queue
+            subject = sub_queue.get()
+            metadata = {}
+            subjectPath = subject["path"]
 
-            # Detect landmarks from image of 128x128.
-            face_img = image[facebox[1]: facebox[3],
-                             facebox[0]: facebox[2]]
-            face_img = cv2.resize(face_img, (CNN_INPUT_SIZE, CNN_INPUT_SIZE))
-            face_img = cv2.cvtColor(face_img, cv2.COLOR_BGR2RGB)
-            marks = mark_detector.detect_marks(face_img)
+            # TODO: iterate for each fame of the subject
+            imagePath = subjectPath + "/frames/"
+            # TODO: check 'isValid' for each frame of the subject
+            #       (based on their data)
+            images = []
+            for image in images:
+                result = detector.extract_cnn_facebox(image)
 
-            # Convert the marks locations from local CNN to global image.
-            marks *= (facebox[2] - facebox[0])
-            marks[:, 0] += facebox[0]
-            marks[:, 1] += facebox[1]
+                if result is not None and confidence >= conf_threshold:
+                    # TODO: determine 'isValid' based on confidence?
 
-            # segment the image based on markers and facebox
-            seg = Segmenter(facebox, marks, image.shape[0], image.shape[1])
-            metadata = seg.segment()
+                    # Detect landmarks from image of 128x128.
+                    face_img = image[facebox[1]: facebox[3],
+                                     facebox[0]: facebox[2]]
+                    face_img = cv2.resize(face_img, (CNN_INPUT_SIZE, CNN_INPUT_SIZE))
+                    face_img = cv2.cvtColor(face_img, cv2.COLOR_BGR2RGB)
+                    marks = mark_detector.detect_marks(face_img)
 
-            # TODO: write out the metadata into json file
+                    # Convert the marks locations from local CNN to global image.
+                    marks *= (facebox[2] - facebox[0])
+                    marks[:, 0] += facebox[0]
+                    marks[:, 1] += facebox[1]
+
+                    # segment the image based on markers and facebox
+                    seg = Segmenter(facebox, marks, image.shape[0], image.shape[1])
+
+                    # store the segmented data into the metadata
+
+            # write out the metadata file
+            filename = image.name + '.json'
+            # TODO: don't write per image - write per subject
+            '''
+            format:
+            {
+            }
+            '''
+            seg.writeJSON(filename)
 
             # TODO: need breaking condition here
 
@@ -147,37 +176,43 @@ def main():
     args = vars(ap.parse_args())
 
     # Setup process and queues for multiprocessing.
-    img_queue = Queue()
+    sub_queue = Queue()
 
     # TODO: spawn more than one thread/process for better processing
     # spawn some number of threads / processes here
     if isWindows():
-        thread = threading.Thread(target=process_image, args=(mark_detector, img_queue))
+        thread = threading.Thread(target=process_image, args=(mark_detector, sub_queue))
         thread.daemon = True
         thread.start()
     else:
         box_process = Process(target=process_image,
-                              args=(mark_detector, img_queue))
+                              args=(mark_detector, sub_queue))
         box_process.start()
 
-    # TODO: find better way to control multiprocessing and memory usage
-    parallelization = 100
-    # TODO: might need better control over memory management
-    max_queue_size = 0
-    # TODO: read number of images from folder
-    num_images = 0
-    num_images_processed = 0
-    while True:
-        # TODO: load images from dataset (iteratively, may not fit
-        #       everything in memory) - need better performance for this
-        if len(img_queue) < max_queue_size:
-            # TODO: get image from disk
+    # get directory to subjects
+    path = args["image_folder"]
+    subjectDirs = os.listdir(path=path)
+    num_subjects = len(subjectDirs)
+    num_subjects_processed = 0
 
-            # feed image into image queue.
-            img_queue.put(frame)
+    # TODO: find better way to control multiprocessing and memory usage
+    parallelization = 10
+    # TODO: might need better control over memory management
+    max_queue_size = 10
+    while True:
+        if len(sub_queue) < max_queue_size:
+            # TODO: get subject from disk
+            subDir = subjectDirs[num_subjects_processed]
+            subject = {
+                'path': subDir
+            }
+            # feed subject into subject queue.
+            sub_queue.put(subject)
+            # update the number of subjects we have processed
+            num_subjects_processed += 1
 
         # TODO: need better way to determine processing is done
-        if num_images_processed > num_images:
+        if num_subjects_processed > num_subjects:
             break;
 
     # clean up process
