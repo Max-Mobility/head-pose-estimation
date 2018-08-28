@@ -80,6 +80,13 @@ class Segmenter:
         if(yBound > size):
             yBound = size
 
+        # set faceGrid bounding box (in 25x25 shape)
+        factor = 25 / size
+        self.faceGridBB = [
+            int(x * factor), int(y * factor)
+            int(xBound * factor), int(yBound * factor)
+        ]
+
         for i in range(x,xBound):
             for j in range(y,yBound):
                 faceGrid[j][i] = 1
@@ -90,7 +97,8 @@ class Segmenter:
             'leftEye': self.leBB,
             'rightEye': self.reBB,
             'face': self.faceBB,
-            'faceGrid': self.faceGrid
+            'faceGrid': self.faceGrid,
+            'faceGridBB': self.faceGridBB
         }
 
     def getSegmentBBs(self):
@@ -111,28 +119,44 @@ class Subject:
         self.faceGridJSON = {}
         self.dotJSON = {}
 
-    def addSegments(self, index, segmentJSON):
-        # update leftEyeJSON
-        le = segmentJSON["leftEye"]
-        self.leftEyeJSON['X'][index] = le[0]
-        self.leftEyeJSON['Y'][index] = le[1]
-        self.leftEyeJSON['W'][index] = le[2] - le[0]
-        self.leftEyeJSON['H'][index] = le[3] - le[1]
-        self.leftEyeJSON['isValid'][index] = True
-        # update rightEyeJSON
-        re = segmentJSON["rightEye"]
-        self.rightEyeJSON['X'][index] = re[0]
-        self.rightEyeJSON['Y'][index] = re[1]
-        self.rightEyeJSON['W'][index] = re[2] - re[0]
-        self.rightEyeJSON['H'][index] = re[3] - re[1]
-        self.rightEyeJSON['isValid'][index] = True
-        # update faceJSON
-        f = segmentJSON["face"]
-        self.faceJSON['X'][index] = f[0]
-        self.faceJSON['Y'][index] = f[1]
-        self.faceJSON['W'][index] = f[2] - f[0]
-        self.faceJSON['H'][index] = f[3] - f[1]
-        self.faceJSON['isValid'][index] = True
+    def addSegments(self, index, segmentJSON=None):
+        # Note: this function does not update dotJSON or framesJSON -
+        #       since they are loaded and should be unchanged
+        if segmentJSON is not None:
+            # update leftEyeJSON
+            le = segmentJSON["leftEye"]
+            self.leftEyeJSON['X'][index] = le[0]
+            self.leftEyeJSON['Y'][index] = le[1]
+            self.leftEyeJSON['W'][index] = le[2] - le[0]
+            self.leftEyeJSON['H'][index] = le[3] - le[1]
+            self.leftEyeJSON['isValid'][index] = True
+            # update rightEyeJSON
+            re = segmentJSON["rightEye"]
+            self.rightEyeJSON['X'][index] = re[0]
+            self.rightEyeJSON['Y'][index] = re[1]
+            self.rightEyeJSON['W'][index] = re[2] - re[0]
+            self.rightEyeJSON['H'][index] = re[3] - re[1]
+            self.rightEyeJSON['isValid'][index] = True
+            # update faceJSON
+            f = segmentJSON["face"]
+            self.faceJSON['X'][index] = f[0]
+            self.faceJSON['Y'][index] = f[1]
+            self.faceJSON['W'][index] = f[2] - f[0]
+            self.faceJSON['H'][index] = f[3] - f[1]
+            self.faceJSON['isValid'][index] = True
+            # update faceGridJSON
+            # Note: FG is 1-indexed, so we must add one
+            fg = segmentJSON["faceGridBB"]
+            self.faceGridJSON['X'][index] = fg[0] + 1
+            self.faceGridJSON['Y'][index] = fg[1] + 1
+            self.faceGridJSON['W'][index] = fg[2] - fg[0]
+            self.faceGridJSON['H'][index] = fg[3] - fg[1]
+            self.faceGridJSON['isValid'][index] = True
+        else:
+            self.leftEyeJSON['isValid'][index] = False
+            self.rightEyeJSON['isValid'][index] = False
+            self.faceJSON['isValid'][index] = False
+            self.faceGridJSON['isValid'][index] = False
 
     def writeSegmentFiles(self, folder):
         fullDir = self.path + '/' + folder
@@ -236,6 +260,10 @@ def main():
                                                              leftEye['IsValid'],
                                                              rightEye['IsValid'],
                                                              faceGrid['IsValid'])):
+                # we'll need to make sure all frames are processed so
+                # we must call Subject::addSegments for every frame -
+                # it will set isValid to False if segmentJSON is None
+                segmentJSON = None
                 # Check if cur frame is valid
                 if(fv*lv*rv*fgv == 1):
                     # Generate path for frame
@@ -263,10 +291,11 @@ def main():
 
                         # segment the image based on markers and facebox
                         seg = Segmenter(facebox, marks, image.shape[0], image.shape[1])
-                        # add segment data to subject
-                        subject.addSegments(i, seg.getSegmentJSON())
+                        segmentJSON = seg.getSegmentJSON()
                     #Build the dictionary containing the metadata for a frame
                     frameNum += 1
+                # add segment data to subject
+                subject.addSegments(i, segmentJSON)
 
             # write out the metadata file
             folder = 'custom_segmentation'
