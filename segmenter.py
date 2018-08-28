@@ -1,3 +1,7 @@
+import os
+from os_detector import detect_os, isWindows
+detect_os()
+
 import json
 import numpy as np
 import cv2
@@ -83,7 +87,7 @@ class Segmenter:
         # set faceGrid bounding box (in 25x25 shape)
         factor = 25 / size
         self.faceGridBB = [
-            int(x * factor), int(y * factor)
+            int(x * factor), int(y * factor),
             int(xBound * factor), int(yBound * factor)
         ]
 
@@ -112,16 +116,62 @@ class Subject:
     def __init__(self, path):
         self.path = path
         # output json structures
+        # these will be read in
         self.framesJSON = {}
-        self.leftEyeJSON = {}
-        self.rightEyeJSON = {}
-        self.faceJSON = {}
-        self.faceGridJSON = {}
         self.dotJSON = {}
+        # these will be created
+        self.leftEyeJSON = {
+            'X': [],
+            'Y': [],
+            'W': [],
+            'H': [],
+            'isValid': []
+        }
+        self.rightEyeJSON = {
+            'X': [],
+            'Y': [],
+            'W': [],
+            'H': [],
+            'isValid': []
+        }
+        self.faceJSON = {
+            'X': [],
+            'Y': [],
+            'W': [],
+            'H': [],
+            'isValid': []
+        }
+        self.faceGridJSON = {
+            'X': [],
+            'Y': [],
+            'W': [],
+            'H': [],
+            'isValid': []
+        }
 
     def addSegments(self, index, segmentJSON=None):
         # Note: this function does not update dotJSON or framesJSON -
         #       since they are loaded and should be unchanged
+        self.leftEyeJSON['X'].append(0)
+        self.leftEyeJSON['Y'].append(0)
+        self.leftEyeJSON['W'].append(0)
+        self.leftEyeJSON['H'].append(0)
+        self.leftEyeJSON['isValid'].append(False)
+        self.rightEyeJSON['X'].append(0)
+        self.rightEyeJSON['Y'].append(0)
+        self.rightEyeJSON['W'].append(0)
+        self.rightEyeJSON['H'].append(0)
+        self.rightEyeJSON['isValid'].append(False)
+        self.faceJSON['X'].append(0)
+        self.faceJSON['Y'].append(0)
+        self.faceJSON['W'].append(0)
+        self.faceJSON['H'].append(0)
+        self.faceJSON['isValid'].append(False)
+        self.faceGridJSON['X'].append(0)
+        self.faceGridJSON['Y'].append(0)
+        self.faceGridJSON['W'].append(0)
+        self.faceGridJSON['H'].append(0)
+        self.faceGridJSON['isValid'].append(False)
         if segmentJSON is not None:
             # update leftEyeJSON
             le = segmentJSON["leftEye"]
@@ -152,11 +202,6 @@ class Subject:
             self.faceGridJSON['W'][index] = fg[2] - fg[0]
             self.faceGridJSON['H'][index] = fg[3] - fg[1]
             self.faceGridJSON['isValid'][index] = True
-        else:
-            self.leftEyeJSON['isValid'][index] = False
-            self.rightEyeJSON['isValid'][index] = False
-            self.faceJSON['isValid'][index] = False
-            self.faceGridJSON['isValid'][index] = False
 
     def writeSegmentFiles(self, folder):
         fullDir = self.path + '/' + folder
@@ -220,69 +265,70 @@ class Subject:
         return dotMeta
 
     def getImage(self, imagePath):
-        returncv2.imread(imagePath)
+        return cv2.imread(imagePath)
 
 def main():
-
+    import sys
+    from functools import reduce
+    import time
     import argparse
-    from os_detector import detect_os, isWindows
-    detect_os()
-
     from multiprocessing import Process, Queue
     import threading
 
-    conf_threshold = 0.9
+    threads_done = []
 
-    # TODO: finish the impl of this function
-    def process_subject(sub_queue):
+    conf_threshold = 0.1
+    CNN_INPUT_SIZE = 128
+
+    def process_subject(tid, done, sub_queue):
         """Get subject from subject queue. This function is used for multiprocessing"""
         # init variables
         detector = MarkDetector()
 
-        while True:
-            # get subject from queue
-            subject = sub_queue.get()
-            metadata = {}
-            subjectPath = subject.path
+        # get subject from queue
+        subject = sub_queue.get()
+        subjectPath = subject.path
 
-            # load MIT metadata
-            frameNames = subject.getFramesJSON()
-            # Collecting metadata about face, eyes, facegrid, labels
-            face = subject.getFaceJSON()
-            leftEye, rightEye = subject.getEyesJSON()
-            faceGrid = subject.getFaceGridJSON()
-            dotInfo = subject.getDotJSON()
+        print("Processing subject:",subjectPath)
 
-            frameNum = 0
-            # Iterate over frames for the current subject
-            for i, (frame, fv, lv, rv, fgv) in enumerate(zip(frameNames,
-                                                             face['IsValid'],
-                                                             leftEye['IsValid'],
-                                                             rightEye['IsValid'],
-                                                             faceGrid['IsValid'])):
-                # we'll need to make sure all frames are processed so
-                # we must call Subject::addSegments for every frame -
-                # it will set isValid to False if segmentJSON is None
-                segmentJSON = None
-                # Check if cur frame is valid
-                if(fv*lv*rv*fgv == 1):
-                    # Generate path for frame
-                    framePath = subjectPath + "/frames/" + frame
-                    # load image data
-                    image = subject.getImage(framePath)
-                    result = detector.extract_cnn_facebox(image, conf_threshold)
+        # load MIT metadata
+        frameNames = subject.getFramesJSON()
+        # Collecting metadata about face, eyes, facegrid, labels
+        face = subject.getFaceJSON()
+        leftEye, rightEye = subject.getEyesJSON()
+        faceGrid = subject.getFaceGridJSON()
+        dotInfo = subject.getDotJSON()
 
-                    if result is not None:
-                        # unpack result
-                        facebox, confidence = result
-                        # TODO: determine 'isValid' based on confidence?
+        frameNum = 0
+        # Iterate over frames for the current subject
+        for i, (frame, fv, lv, rv, fgv) in enumerate(zip(frameNames,
+                                                         face['IsValid'],
+                                                         leftEye['IsValid'],
+                                                         rightEye['IsValid'],
+                                                         faceGrid['IsValid'])):
+            # we'll need to make sure all frames are processed so
+            # we must call Subject::addSegments for every frame -
+            # it will set isValid to False if segmentJSON is None
+            segmentJSON = None
+            # Check if cur frame is valid
+            if(fv*lv*rv*fgv == 1):
+                # Generate path for frame
+                framePath = subjectPath + "/frames/" + frame
+                # load image data
+                image = subject.getImage(framePath)
+                result = detector.extract_cnn_facebox(image, conf_threshold)
 
+                if result is not None:
+                    # unpack result
+                    facebox, confidence = result
+
+                    try:
                         # Detect landmarks from image of 128x128.
                         face_img = image[facebox[1]: facebox[3],
                                          facebox[0]: facebox[2]]
                         face_img = cv2.resize(face_img, (CNN_INPUT_SIZE, CNN_INPUT_SIZE))
                         face_img = cv2.cvtColor(face_img, cv2.COLOR_BGR2RGB)
-                        marks = mark_detector.detect_marks(face_img)
+                        marks = detector.detect_marks(face_img)
 
                         # Convert the marks locations from local CNN to global image.
                         marks *= (facebox[2] - facebox[0])
@@ -292,36 +338,27 @@ def main():
                         # segment the image based on markers and facebox
                         seg = Segmenter(facebox, marks, image.shape[0], image.shape[1])
                         segmentJSON = seg.getSegmentJSON()
-                    #Build the dictionary containing the metadata for a frame
-                    frameNum += 1
-                # add segment data to subject
-                subject.addSegments(i, segmentJSON)
+                    except cv2.error as inst:
+                        print("Error processing subject", subjectPath.split('/')[-1],'frame', i, inst)
+                #Build the dictionary containing the metadata for a frame
+                frameNum += 1
+            # add segment data to subject
+            subject.addSegments(i, segmentJSON)
 
-            # write out the metadata file
-            folder = 'custom_segmentation'
-            subject.writeSegmentFiles(folder)
+        # write out the metadata file
+        folder = 'custom_segmentation'
+        subject.writeSegmentFiles(folder)
 
-            # TODO: need breaking condition here for while loop
+        # mark that we're done here!
+        done[tid] = True
 
     # parse arguments
     ap = argparse.ArgumentParser()
     ap.add_argument("-i", "--input-folder", type=str, default=".",
                     help="Folder containing unzipped subject folders")
+    ap.add_argument("-n", "--num-threads", type=int, default="10",
+                    help="Number of threads to spawn")
     args = vars(ap.parse_args())
-
-    # Setup process and queues for multiprocessing.
-    sub_queue = Queue()
-
-    # TODO: spawn more than one thread/process for better processing
-    # spawn some number of threads / processes here
-    if isWindows():
-        thread = threading.Thread(target=process_image, args=(mark_detector, sub_queue))
-        thread.daemon = True
-        thread.start()
-    else:
-        box_process = Process(target=process_image,
-                              args=(mark_detector, sub_queue))
-        box_process.start()
 
     # get directory to subjects
     path = args["input_folder"]
@@ -330,27 +367,52 @@ def main():
     num_subjects_processed = 0
 
     # TODO: find better way to control multiprocessing and memory usage
-    parallelization = 10
+    parallelization = min(args["num_threads"], num_subjects)
+
+    # Setup process and queues for multiprocessing.
+    sub_queue = Queue()
+    # spawn some number of threads / processes here
+    tids = []
+    if isWindows():
+        for tid in range(parallelization):
+            threads_done.append(False)
+            thread = threading.Thread(target=process_subject, args=(tid, threads_done, sub_queue))
+            thread.daemon = True
+            thread.start()
+            tids.append(thread)
+    else:
+        for tid in range(parallelization):
+            threads_done.append(False)
+            box_process = Process(target=process_subject,
+                                  args=(tid, threads_done, sub_queue))
+            box_process.start()
+            tids.append(box_process)
+
+
     # TODO: might need better control over memory management
     max_queue_size = 10
     while True:
-        if len(sub_queue) < max_queue_size:
-            # TODO: get subject from disk
+        if sub_queue.qsize() < max_queue_size and num_subjects_processed < num_subjects:
             subDir = subjectDirs[num_subjects_processed]
-            subject = Subject(subDir)
+            subject = Subject(path + '/' + subDir)
             # feed subject into subject queue.
             sub_queue.put(subject)
             # update the number of subjects we have processed
             num_subjects_processed += 1
 
-        # TODO: need better way to determine processing is done
-        if num_subjects_processed > num_subjects:
+        # are the threads done?
+        if reduce((lambda x, y: x and y), threads_done, True):
+            print("All threads done, exiting!")
             break;
+
+        # wait to not take up cpu time
+        time.sleep(0.1)
 
     # clean up process
     if not isWindows():
-        box_process.terminate()
-        box_process.join()
+        for tid in tids:
+            tid.terminate()
+            tid.join()
 
 
 if __name__ == '__main__':
