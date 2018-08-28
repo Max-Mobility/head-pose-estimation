@@ -112,8 +112,6 @@ class Subject:
         self.dotJSON = {}
 
     def addSegments(self, index, segmentJSON):
-        # TODO: what to write to framesJSON?
-        self.framesJSON
         # update leftEyeJSON
         le = segmentJSON["leftEye"]
         self.leftEyeJSON['X'][index] = le[0]
@@ -169,6 +167,8 @@ class Subject:
     def getFramesJSON(self):
         with open(self.path + '/frames.json') as f:
             frames = json.load(f)
+        # update frameJSON to be same as loaded file
+        self.frameJSON = frames
         return frames
 
     def getFaceJSON(self):
@@ -191,6 +191,8 @@ class Subject:
     def getDotJSON(self):
         with open(self.path + '/dotInfo.json') as f:
             dotMeta = json.load(f)
+        # update dotJSON to be the same as the loaded file
+        self.dotJSON = dotMeta
         return dotMeta
 
     def getImage(self, imagePath):
