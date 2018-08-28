@@ -111,9 +111,23 @@ class Subject:
         self.faceGridJSON = {}
         self.dotJSON = {}
 
-    def addSegments(self, segments):
-        # TODO reformat segments and add to the JSON structures
-        self.segments = segments
+    def addSegments(self, index, segmentJSON):
+        # TODO: what to write to framesJSON?
+        self.framesJSON
+        # update leftEyeJSON
+        le = segmentJSON["leftEye"]
+        self.leftEyeJSON['X'][index] = le[0]
+        self.leftEyeJSON['Y'][index] = le[1]
+        self.leftEyeJSON['W'][index] = le[2] - le[0]
+        self.leftEyeJSON['H'][index] = le[3] - le[1]
+        self.leftEyeJSON['isValid'][index] = True
+        # update rightEyeJSON
+        re = segmentJSON["rightEye"]
+        self.rightEyeJSON['X'][index] = re[0]
+        self.rightEyeJSON['Y'][index] = re[1]
+        self.rightEyeJSON['W'][index] = re[2] - re[0]
+        self.rightEyeJSON['H'][index] = re[3] - re[1]
+        self.rightEyeJSON['isValid'][index] = True
 
     def writeSegmentFiles(self, folder):
         fullDir = self.path + '/' + folder
@@ -241,7 +255,7 @@ def main():
                         # segment the image based on markers and facebox
                         seg = Segmenter(facebox, marks, image.shape[0], image.shape[1])
                         # add segment data to subject
-                        subject.addSegments(seg.getSegmentJSON())
+                        subject.addSegments(i, seg.getSegmentJSON())
                     #Build the dictionary containing the metadata for a frame
                     frameNum += 1
 
