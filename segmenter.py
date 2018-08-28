@@ -86,11 +86,11 @@ class Segmenter:
         return faceGrid
 
     def writeJSON(self, filename):
-        metadata = self.segment()
+        metadata = self.getSegmentJSON()
         with open(filename) as f:
             f.write(json.dumps(metadata, sort_keys=True, indent=4))
 
-    def segment(self):
+    def getSegmentJSON(self):
         return {
             'leftEye': self.leBB,
             'rightEye': self.reBB,
@@ -104,6 +104,81 @@ class Segmenter:
             self.reBB,
             self.faceBB
         ]
+
+class Subject:
+    def __init__(self, path):
+        self.path = path
+        # output json structures
+        self.framesJSON = {}
+        self.leftEyeJSON = {}
+        self.rightEyeJSON = {}
+        self.faceJSON = {}
+        self.faceGridJSON = {}
+        self.dotJSON = {}
+
+    def addSegments(self, segments):
+        # TODO reformat segments and add to the JSON structures
+        self.segments = segments
+
+    def writeSegmentFiles(self, folder):
+        fullDir = self.path + '/' + folder
+        # check if the folder exists
+        if not os.path.isdir(fullDir):
+            os.mkdir(fullDir)
+        # write frames.json
+        fname = 'frames.json'
+        with open(fullDir + '/' + fname, 'w') as f:
+            f.write(json.dumps(self.framesJSON))
+        # write appleFace.json
+        fname = 'appleFace.json'
+        with open(fullDir + '/' + fname, 'w') as f:
+            f.write(json.dumps(self.faceJSON))
+        # write appleLeftEye.json
+        fname = 'appleLeftEye.json'
+        with open(fullDir + '/' + fname, 'w') as f:
+            f.write(json.dumps(self.leftEyeJSON))
+        # write appleRightEye.json
+        fname = 'appleRightEye.json'
+        with open(fullDir + '/' + fname, 'w') as f:
+            f.write(json.dumps(self.rightEyeJSON))
+        # write faceGrid.json
+        fname = 'faceGrid.json'
+        with open(fullDir + '/' + fname, 'w') as f:
+            f.write(json.dumps(self.faceGridJSON))
+        # write dotInfo.json
+        fname = 'dotInfo.json'
+        with open(fullDir + '/' + fname, 'w') as f:
+            f.write(json.dumps(self.dotJSON))
+
+    def getFramesJSON(self):
+        with open(self.path + '/frames.json') as f:
+            frames = json.load(f)
+        return frames
+
+    def getFaceJSON(self):
+        with open(self.path + '/appleFace.json') as f:
+            faceMeta = json.load(f)
+        return faceMeta
+
+    def getEyesJSON(self):
+        with open(self.path + '/appleLeftEye.json') as f:
+            leftEyeMeta = json.load(f)
+        with open(self.path + '/appleRightEye.json') as f:
+            rightEyeMeta = json.load(f)
+        return (leftEyeMeta, rightEyeMeta)
+
+    def getFaceGridJSON(self):
+        with open(self.path + '/faceGrid.json') as f:
+            faceGridMeta = json.load(f)
+        return faceGridMeta
+
+    def getDotJSON(self):
+        with open(self.path + '/dotInfo.json') as f:
+            dotMeta = json.load(f)
+        return dotMeta
+
+    def getImage(self, imagePath):
+        returncv2.imread(imagePath)
 
 def main():
 
@@ -126,49 +201,60 @@ def main():
             # get subject from queue
             subject = sub_queue.get()
             metadata = {}
-            subjectPath = subject["path"]
+            subjectPath = subject.path
 
-            # TODO: iterate for each fame of the subject
-            imagePath = subjectPath + "/frames/"
-            # TODO: check 'isValid' for each frame of the subject
-            #       (based on their data)
-            images = []
-            for image in images:
-                result = detector.extract_cnn_facebox(image, conf_threshold)
+            # load MIT metadata
+            frameNames = subject.getFramesJSON()
+            # Collecting metadata about face, eyes, facegrid, labels
+            face = subject.getFaceJSON()
+            leftEye, rightEye = subject.getEyesJSON()
+            faceGrid = subject.getFaceGridJSON()
+            dotInfo = subject.getDotJSON()
 
-                if result is not None:
-                    # unpack result
-                    facebox, confidence = result
-                    # TODO: determine 'isValid' based on confidence?
+            frameNum = 0
+            # Iterate over frames for the current subject
+            for i, (frame, fv, lv, rv, fgv) in enumerate(zip(frameNames,
+                                                             face['IsValid'],
+                                                             leftEye['IsValid'],
+                                                             rightEye['IsValid'],
+                                                             faceGrid['IsValid'])):
+                # Check if cur frame is valid
+                if(fv*lv*rv*fgv == 1):
+                    # Generate path for frame
+                    framePath = subjectPath + "/frames/" + frame
+                    # load image data
+                    image = subject.getImage(framePath)
+                    result = detector.extract_cnn_facebox(image, conf_threshold)
 
-                    # Detect landmarks from image of 128x128.
-                    face_img = image[facebox[1]: facebox[3],
-                                     facebox[0]: facebox[2]]
-                    face_img = cv2.resize(face_img, (CNN_INPUT_SIZE, CNN_INPUT_SIZE))
-                    face_img = cv2.cvtColor(face_img, cv2.COLOR_BGR2RGB)
-                    marks = mark_detector.detect_marks(face_img)
+                    if result is not None:
+                        # unpack result
+                        facebox, confidence = result
+                        # TODO: determine 'isValid' based on confidence?
 
-                    # Convert the marks locations from local CNN to global image.
-                    marks *= (facebox[2] - facebox[0])
-                    marks[:, 0] += facebox[0]
-                    marks[:, 1] += facebox[1]
+                        # Detect landmarks from image of 128x128.
+                        face_img = image[facebox[1]: facebox[3],
+                                         facebox[0]: facebox[2]]
+                        face_img = cv2.resize(face_img, (CNN_INPUT_SIZE, CNN_INPUT_SIZE))
+                        face_img = cv2.cvtColor(face_img, cv2.COLOR_BGR2RGB)
+                        marks = mark_detector.detect_marks(face_img)
 
-                    # segment the image based on markers and facebox
-                    seg = Segmenter(facebox, marks, image.shape[0], image.shape[1])
+                        # Convert the marks locations from local CNN to global image.
+                        marks *= (facebox[2] - facebox[0])
+                        marks[:, 0] += facebox[0]
+                        marks[:, 1] += facebox[1]
 
-                    # store the segmented data into the metadata
+                        # segment the image based on markers and facebox
+                        seg = Segmenter(facebox, marks, image.shape[0], image.shape[1])
+                        # add segment data to subject
+                        subject.addSegments(seg.getSegmentJSON())
+                    #Build the dictionary containing the metadata for a frame
+                    frameNum += 1
 
             # write out the metadata file
-            filename = image.name + '.json'
-            # TODO: don't write per image - write per subject
-            '''
-            format:
-            {
-            }
-            '''
-            seg.writeJSON(filename)
+            folder = 'custom_segmentation'
+            subject.writeSegmentFiles(folder)
 
-            # TODO: need breaking condition here
+            # TODO: need breaking condition here for while loop
 
     # parse arguments
     ap = argparse.ArgumentParser()
@@ -204,9 +290,7 @@ def main():
         if len(sub_queue) < max_queue_size:
             # TODO: get subject from disk
             subDir = subjectDirs[num_subjects_processed]
-            subject = {
-                'path': subDir
-            }
+            subject = Subject(subDir)
             # feed subject into subject queue.
             sub_queue.put(subject)
             # update the number of subjects we have processed
