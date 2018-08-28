@@ -253,8 +253,8 @@ def main():
 
     # parse arguments
     ap = argparse.ArgumentParser()
-    ap.add_argument("-i", "--image-folder", type=str, default=".",
-                    help="Folder where images are stored")
+    ap.add_argument("-i", "--input-folder", type=str, default=".",
+                    help="Folder containing unzipped subject folders")
     args = vars(ap.parse_args())
 
     # Setup process and queues for multiprocessing.
@@ -272,7 +272,7 @@ def main():
         box_process.start()
 
     # get directory to subjects
-    path = args["image_folder"]
+    path = args["input_folder"]
     subjectDirs = os.listdir(path=path)
     num_subjects = len(subjectDirs)
     num_subjects_processed = 0
