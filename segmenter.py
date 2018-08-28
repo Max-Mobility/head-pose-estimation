@@ -85,11 +85,6 @@ class Segmenter:
                 faceGrid[j][i] = 1
         return faceGrid
 
-    def writeJSON(self, filename):
-        metadata = self.getSegmentJSON()
-        with open(filename) as f:
-            f.write(json.dumps(metadata, sort_keys=True, indent=4))
-
     def getSegmentJSON(self):
         return {
             'leftEye': self.leBB,
