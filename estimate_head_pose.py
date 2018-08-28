@@ -112,6 +112,11 @@ def main():
                 mark_detector.face_detector.draw_result(frame, result)
             # unpack result
             facebox, confidence = result
+            # fix facebox if needed
+            if facebox[1] > facebox[3]:
+                facebox[1] = 0
+            if facebox[0] > facebox[2]:
+                facebox[0] = 0
             # Detect landmarks from image of 128x128.
             face_img = frame[facebox[1]: facebox[3],
                              facebox[0]: facebox[2]]

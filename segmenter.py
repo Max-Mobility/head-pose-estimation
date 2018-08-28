@@ -275,12 +275,10 @@ def main():
     from multiprocessing import Process, Queue
     import threading
 
-    threads_done = []
-
     conf_threshold = 0.1
     CNN_INPUT_SIZE = 128
 
-    def process_subject(tid, done, sub_queue):
+    def process_subject(done_queue, sub_queue):
         """Get subject from subject queue. This function is used for multiprocessing"""
         # init variables
         detector = MarkDetector()
@@ -288,8 +286,9 @@ def main():
         # get subject from queue
         subject = sub_queue.get()
         subjectPath = subject.path
+        subjectID = subjectPath.split('/')[-1]
 
-        print("Processing subject:",subjectPath)
+        print("Processing subject:",subjectID)
 
         # load MIT metadata
         frameNames = subject.getFramesJSON()
@@ -323,6 +322,11 @@ def main():
                     facebox, confidence = result
 
                     try:
+                        # fix facebox if needed
+                        if facebox[1] > facebox[3]:
+                            facebox[1] = 0
+                        if facebox[0] > facebox[2]:
+                            facebox[0] = 0
                         # Detect landmarks from image of 128x128.
                         face_img = image[facebox[1]: facebox[3],
                                          facebox[0]: facebox[2]]
@@ -339,7 +343,7 @@ def main():
                         seg = Segmenter(facebox, marks, image.shape[0], image.shape[1])
                         segmentJSON = seg.getSegmentJSON()
                     except cv2.error as inst:
-                        print("Error processing subject", subjectPath.split('/')[-1],'frame', i, inst)
+                        print("Error processing subject:", subjectID,'frame:', i, inst)
                 #Build the dictionary containing the metadata for a frame
                 frameNum += 1
             # add segment data to subject
@@ -349,8 +353,10 @@ def main():
         folder = 'custom_segmentation'
         subject.writeSegmentFiles(folder)
 
+        print("Finished processing subject:", subjectID)
+
         # mark that we're done here!
-        done[tid] = True
+        done_queue.put(True)
 
     # parse arguments
     ap = argparse.ArgumentParser()
@@ -371,20 +377,19 @@ def main():
 
     # Setup process and queues for multiprocessing.
     sub_queue = Queue()
+    done_queue = Queue()
     # spawn some number of threads / processes here
     tids = []
     if isWindows():
         for tid in range(parallelization):
-            threads_done.append(False)
-            thread = threading.Thread(target=process_subject, args=(tid, threads_done, sub_queue))
+            thread = threading.Thread(target=process_subject, args=(done_queue, sub_queue))
             thread.daemon = True
             thread.start()
             tids.append(thread)
     else:
         for tid in range(parallelization):
-            threads_done.append(False)
             box_process = Process(target=process_subject,
-                                  args=(tid, threads_done, sub_queue))
+                                  args=(done_queue, sub_queue))
             box_process.start()
             tids.append(box_process)
 
@@ -401,7 +406,7 @@ def main():
             num_subjects_processed += 1
 
         # are the threads done?
-        if reduce((lambda x, y: x and y), threads_done, True):
+        if done_queue.qsize() >= len(tids):
             print("All threads done, exiting!")
             break;
 
