@@ -157,10 +157,10 @@ class MarkDetector:
         cols = image.shape[1]
         return box[0] >= 0 and box[1] >= 0 and box[2] <= cols and box[3] <= rows
 
-    def extract_cnn_facebox(self, image):
+    def extract_cnn_facebox(self, image, threshold=0.9):
         """Extract face area from image."""
         confidences, raw_boxes = self.face_detector.get_faceboxes(
-            image=image, threshold=0.9)
+            image=image, threshold=threshold)
 
         for box in raw_boxes:
             # Move box down.

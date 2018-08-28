@@ -116,10 +116,9 @@ def main():
 
     conf_threshold = 0.9
 
-    # TODO: update this function to do all the processing and
-    #       serialization of new metadata file
+    # TODO: finish the impl of this function
     def process_subject(sub_queue):
-        """Get face from image queue. This function is used for multiprocessing"""
+        """Get subject from subject queue. This function is used for multiprocessing"""
         # init variables
         detector = MarkDetector()
 
@@ -135,9 +134,11 @@ def main():
             #       (based on their data)
             images = []
             for image in images:
-                result = detector.extract_cnn_facebox(image)
+                result = detector.extract_cnn_facebox(image, conf_threshold)
 
-                if result is not None and confidence >= conf_threshold:
+                if result is not None:
+                    # unpack result
+                    facebox, confidence = result
                     # TODO: determine 'isValid' based on confidence?
 
                     # Detect landmarks from image of 128x128.
