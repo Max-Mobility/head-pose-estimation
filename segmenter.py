@@ -128,6 +128,13 @@ class Subject:
         self.rightEyeJSON['W'][index] = re[2] - re[0]
         self.rightEyeJSON['H'][index] = re[3] - re[1]
         self.rightEyeJSON['isValid'][index] = True
+        # update faceJSON
+        f = segmentJSON["face"]
+        self.faceJSON['X'][index] = f[0]
+        self.faceJSON['Y'][index] = f[1]
+        self.faceJSON['W'][index] = f[2] - f[0]
+        self.faceJSON['H'][index] = f[3] - f[1]
+        self.faceJSON['isValid'][index] = True
 
     def writeSegmentFiles(self, folder):
         fullDir = self.path + '/' + folder
