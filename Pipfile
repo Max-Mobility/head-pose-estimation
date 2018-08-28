@@ -1,0 +1,20 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[dev-packages]
+
+[packages]
+tensorflow = "*"
+keras = "*"
+opencv-python = "*"
+"progressbar2" = "*"
+tensorboard = "*"
+pygame = "*"
+socketio-client-nexus = "*"
+argparse = "*"
+pandas = "*"
+
+[requires]
+python_version = "3.7"
