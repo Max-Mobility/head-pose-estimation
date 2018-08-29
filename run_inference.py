@@ -32,15 +32,17 @@ class Screen:
         self.screenSize = screenSize
         #Define camera and screen parameters
         # for Surface Book
-        self.xCameraOffsetCm = 14.25
+        self.xCameraOffsetCm = (14.25) / 1.9 + 3.0
         self.yCameraOffsetCm = -0.75
-        self.wScreenCm = 28.5
-        self.hScreenCm = 19.0
+        self.wScreenCm = 28.5 / 1.9
+        self.hScreenCm = 19.0 / 1.9
+        '''
         # for william desktop
         self.xCameraOffsetCm = 18.0
         self.yCameraOffsetCm = -1.5
         self.wScreenCm = 25.0
         self.hScreenCm = 15.0
+        '''
         #Conversion factors to scale centimeters to screen pixels
         self.xCm2Px = self.screenSize[0]/self.wScreenCm
         self.yCm2Px = self.screenSize[1]/self.hScreenCm
@@ -62,7 +64,9 @@ def get_face(detector, threshold, img_queue, box_queue):
 
 
 def main():
-    screen = Screen((3840,2400))
+    pyautogui.FAILSAFE = False
+
+    screen = Screen()
 
     # construct the argument parse and parse the arguments
     ap = argparse.ArgumentParser()
