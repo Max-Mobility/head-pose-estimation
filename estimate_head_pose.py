@@ -24,12 +24,11 @@ from segmenter import Segmenter
 
 CNN_INPUT_SIZE = 128
 
-
-def get_face(detector, img_queue, box_queue):
+def get_face(detector, threshold, img_queue, box_queue):
     """Get face from image queue. This function is used for multiprocessing"""
     while True:
         image = img_queue.get()
-        box = detector.extract_cnn_facebox(image)
+        box = detector.extract_cnn_facebox(image, threshold)
         box_queue.put(box)
 
 
@@ -40,6 +39,8 @@ def main():
                     help="")
     ap.add_argument("-c", "--draw-confidence", action="store_true", default=False,
                     help="")
+    ap.add_argument("-t", "--confidence-threshold", type=float, default=0.9,
+                    help="")
     ap.add_argument("-p", "--draw-pose", action="store_false", default=True,
                     help="")
     ap.add_argument("-u", "--draw-unstable", action="store_true", default=False,
@@ -47,6 +48,8 @@ def main():
     ap.add_argument("-s", "--draw-segmented", action="store_true", default=False,
                     help="")
     args = vars(ap.parse_args())
+
+    confidence_threshold = args["confidence_threshold"]
 
     """MAIN"""
     # Video source from webcam or video file.
@@ -63,12 +66,12 @@ def main():
     img_queue.put(sample_frame)
 
     if isWindows():
-        thread = threading.Thread(target=get_face, args=(mark_detector, img_queue, box_queue))
+        thread = threading.Thread(target=get_face, args=(mark_detector, confidence_threshold, img_queue, box_queue))
         thread.daemon = True
         thread.start()
     else:
         box_process = Process(target=get_face,
-                              args=(mark_detector, img_queue, box_queue))
+                              args=(mark_detector, confidence_threshold, img_queue, box_queue))
         box_process.start()
 
     # Introduce pose estimator to solve pose. Get one frame to setup the
