@@ -15,6 +15,8 @@ import threading
 import argparse
 import numpy as np
 
+import pyautogui
+
 import cv2
 from mark_detector import MarkDetector
 from pose_estimator import PoseEstimator
@@ -25,6 +27,32 @@ from segmenter import Segmenter
 
 CNN_INPUT_SIZE = 128
 
+class Screen:
+    def __init__(self, screenSize = (3000,2000)):
+        self.screenSize = screenSize
+        #Define camera and screen parameters
+        # for Surface Book
+        self.xCameraOffsetCm = 14.25
+        self.yCameraOffsetCm = -0.75
+        self.wScreenCm = 28.5
+        self.hScreenCm = 19.0
+        # for william desktop
+        self.xCameraOffsetCm = 18.0
+        self.yCameraOffsetCm = -1.5
+        self.wScreenCm = 25.0
+        self.hScreenCm = 15.0
+        #Conversion factors to scale centimeters to screen pixels
+        self.xCm2Px = self.screenSize[0]/self.wScreenCm
+        self.yCm2Px = self.screenSize[1]/self.hScreenCm
+
+    def cm2Px(self, coords):
+        pos = [
+            round(self.xCm2Px*(coords[0] + self.xCameraOffsetCm)),
+            round(self.yCm2Px*(-1*coords[1] + self.yCameraOffsetCm))
+        ]
+        return (max(0,min(self.screenSize[0], pos[0])),
+                max(0,min(self.screenSize[1], pos[1])))
+
 def get_face(detector, threshold, img_queue, box_queue):
     """Get face from image queue. This function is used for multiprocessing"""
     while True:
@@ -34,6 +62,8 @@ def get_face(detector, threshold, img_queue, box_queue):
 
 
 def main():
+    screen = Screen((3840,2400))
+
     # construct the argument parse and parse the arguments
     ap = argparse.ArgumentParser()
     ap.add_argument("-m", "--draw-markers", action="store_true", default=False,
@@ -155,7 +185,11 @@ def main():
                 segments["face"],
                 segments["faceGrid"]
             )
+            gaze[0] = -gaze[0]
             print(gaze)
+            x,y = screen.cm2Px(gaze)
+            #print((x,y))
+            pyautogui.moveTo(x,y)
 
             # Try pose estimation with 68 points.
             pose = pose_estimator.solve_pose_by_68_points(marks)
