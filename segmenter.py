@@ -272,6 +272,7 @@ def main():
     from functools import reduce
     import time
     import argparse
+    import Queue as Q
     from multiprocessing import Process, Queue
     import threading
 
@@ -288,7 +289,7 @@ def main():
             try:
                 # get subject from queue
                 subject = sub_queue.get(timeout=timeout)
-            except Queue.Empty as inst:
+            except Q.Empty as inst:
                 print("sub_queue timeout")
                 break;
             subjectPath = subject.path
