@@ -237,7 +237,7 @@ class Subject:
         with open(self.path + '/frames.json') as f:
             frames = json.load(f)
         # update frameJSON to be same as loaded file
-        self.frameJSON = frames
+        self.framesJSON = frames
         return frames
 
     def getFaceJSON(self):
@@ -276,21 +276,36 @@ def main():
     from multiprocessing import Process, Queue
     import threading
 
+    # parse arguments
+    ap = argparse.ArgumentParser()
+    ap.add_argument("-i", "--input-folder", type=str, default=".",
+                    help="Folder containing unzipped subject folders")
+    ap.add_argument("-o", "--output-prefix", type=str, default="custom_segmentation",
+                    help="Name / Prefix for output folder")
+    ap.add_argument("-c", "--use-confidence", action="store_true", default=False,
+                    help="Flag to enable use of confidence as 'isValid' metric")
+    ap.add_argument("-t", "--confidence-threshold", type=float, default=0.7,
+                    help="Number of threads to spawn")
+    ap.add_argument("-n", "--num-threads", type=int, default="10",
+                    help="Number of threads to spawn")
+    args = vars(ap.parse_args())
+
     # init shared variables
-    conf_threshold = 0.1
     CNN_INPUT_SIZE = 128
+    output_prefix = args["output_prefix"]
+    conf_threshold = args["confidence_threshold"]
+    use_confidence = args["use_confidence"]
 
     def process_subject(done_queue, sub_queue):
         """Get subject from subject queue. This function is used for multiprocessing"""
         # init process/thread variables
         detector = MarkDetector()
-        timeout = 1
+        timeout = 1 # 1 second timeout waiting for more subjects
         while True:
             try:
                 # get subject from queue
                 subject = sub_queue.get(timeout=timeout)
             except Q.Empty as inst:
-                print("sub_queue timeout")
                 break;
             subjectPath = subject.path
             subjectID = subjectPath.split('/')[-1]
@@ -316,7 +331,7 @@ def main():
                 # it will set isValid to False if segmentJSON is None
                 segmentJSON = None
                 # Check if cur frame is valid
-                if(fv*lv*rv*fgv == 1):
+                if(use_confidence or fv*lv*rv*fgv == 1):
                     # Generate path for frame
                     framePath = subjectPath + "/frames/" + frame
                     # load image data
@@ -354,22 +369,13 @@ def main():
                 subject.addSegments(i, segmentJSON)
 
             # write out the metadata file
-            folder = 'custom_segmentation'
-            subject.writeSegmentFiles(folder)
+            subject.writeSegmentFiles(output_prefix)
 
             print("Finished processing subject:", subjectID)
 
         # mark that we're done here!
         print("processing thread done!")
         done_queue.put(True)
-
-    # parse arguments
-    ap = argparse.ArgumentParser()
-    ap.add_argument("-i", "--input-folder", type=str, default=".",
-                    help="Folder containing unzipped subject folders")
-    ap.add_argument("-n", "--num-threads", type=int, default="10",
-                    help="Number of threads to spawn")
-    args = vars(ap.parse_args())
 
     # get directory to subjects
     path = args["input_folder"]
