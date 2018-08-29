@@ -99,6 +99,7 @@ class MarkDetector:
                 tf.import_graph_def(od_graph_def, name='')
         self.graph = detection_graph
         self.sess = tf.Session(graph=detection_graph)
+        self.graph.finalize()
 
     @staticmethod
     def draw_box(image, boxes, box_color=(255, 255, 255)):
