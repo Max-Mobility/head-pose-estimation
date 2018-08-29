@@ -272,7 +272,7 @@ def main():
     from functools import reduce
     import time
     import argparse
-    import Queue as Q
+    import queue as Q
     from multiprocessing import Process, Queue
     import threading
 
