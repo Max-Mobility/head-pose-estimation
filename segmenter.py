@@ -279,7 +279,7 @@ def main():
     # parse arguments
     ap = argparse.ArgumentParser()
     ap.add_argument("-i", "--input-folder", type=str, default=".",
-                    help="Folder containing unzipped subject folders")
+                    help="Folder containing unzipped test/train/validate folders (which contain subjects)")
     ap.add_argument("-o", "--output-prefix", type=str, default="custom_segmentation",
                     help="Name / Prefix for output folder")
     ap.add_argument("-c", "--use-confidence", action="store_true", default=False,
@@ -378,8 +378,17 @@ def main():
         done_queue.put(True)
 
     # get directory to subjects
-    path = args["input_folder"]
-    subjectDirs = os.listdir(path=path)
+    base_path = args["input_folder"]
+    train_path = base_path + '/train'
+    test_path = base_path + '/test'
+    validate_path = base_path + '/validate'
+    subjectDirs = [
+        os.listdir(path=train_path),
+        os.listdir(path=test_path),
+        os.listdir(path=validate_path)
+    ]
+    # flatten the directories
+    subjectDirs = [item for sublist in subjectDirs for item in sublist]
     num_subjects = len(subjectDirs)
     num_subjects_processed = 0
 
