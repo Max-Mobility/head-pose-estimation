@@ -165,6 +165,16 @@ class Subject:
             'H': [],
             'IsValid': []
         }
+        self.poseJSON = {
+            'Confidence': [],
+            'HeadPose': []
+        }
+
+    def addPose(self, index, confidence=0.0, pose=None):
+        self.poseJSON['Confidence'].append(confidence)
+        self.poseJSON['HeadPose'].append([])
+        if pose is not None:
+            self.poseJSON['HeadPose'][index] = pose
 
     def addSegments(self, index, segmentJSON=None):
         # Note: this function does not update dotJSON or framesJSON -
@@ -249,6 +259,10 @@ class Subject:
         fname = 'dotInfo.json'
         with open(fullDir + '/' + fname, 'w') as f:
             f.write(json.dumps(self.dotJSON))
+        # write pose.json
+        fname = 'pose.json'
+        with open(fullDir + '/' + fname, 'w') as f:
+            f.write(json.dumps(self.poseJSON))
 
     def getFramesJSON(self):
         with open(self.path + '/frames.json') as f:
@@ -292,6 +306,7 @@ def main():
     import queue as Q
     from multiprocessing import Process, Queue
     import threading
+    from pose_estimator import PoseEstimator
 
     # parse arguments
     ap = argparse.ArgumentParser()
@@ -347,6 +362,8 @@ def main():
                 # we must call Subject::addSegments for every frame -
                 # it will set IsValid to False if segmentJSON is None
                 segmentJSON = None
+                pose = None
+                confidence = 0.0
                 # Check if cur frame is valid
                 if(use_confidence or fv*lv*rv*fgv == 1):
                     # Generate path for frame
@@ -380,10 +397,16 @@ def main():
                             # segment the image based on markers and facebox
                             seg = Segmenter(facebox, marks, image.shape[0], image.shape[1])
                             segmentJSON = seg.getSegmentJSON()
+
+                            # Try pose estimation with 68 points.
+                            pose_estimator = PoseEstimator(img_size=(height, width))
+                            pose = pose_estimator.solve_pose_by_68_points(marks)
+                            pose = np.array(pose).flatten()
                         except cv2.error as inst:
                             print("Error processing subject:", subjectID,'frame:', i, inst)
                 # add segment data to subject
                 subject.addSegments(i, segmentJSON)
+                subject.addPose(i, confidence, pose)
 
             # write out the metadata file
             subject.writeSegmentFiles(output_prefix)
