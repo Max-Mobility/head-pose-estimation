@@ -82,6 +82,16 @@ def main():
                     help="")
     ap.add_argument("-s", "--draw-segmented", action="store_true", default=False,
                     help="")
+    ap.add_argument("-g", "--gaze-net", type=str, default='model/mobileNet.pb',
+                    help="")
+    ap.add_argument("-e", "--eye-size", type=int, default=224,
+                    help="")
+    ap.add_argument("-f", "--face-size", type=str, default=224,
+                    help="")
+    ap.add_argument("-i", "--inputs", type=str, default='input_1,input_2,input_3,input_4',
+                    help="")
+    ap.add_argument("-o", "--outputs", type=str, default='output_node00',
+                    help="")
     args = vars(ap.parse_args())
 
     confidence_threshold = args["confidence_threshold"]
@@ -96,7 +106,18 @@ def main():
     mark_detector = MarkDetector()
 
     # Introduce mark_detector to detect landmarks.
-    gaze_detector = GazeEstimator()
+    gaze_model = args["gaze_net"]
+    eye_size = args["eye_size"]
+    face_size = args["face_size"]
+    inputs = args["inputs"]
+    outputs = args["outputs"]
+    gaze_detector = GazeEstimator(
+        gaze_model=gaze_model,
+        eye_image_size=eye_size,
+        face_image_size=face_size,
+        inputs=inputs,
+        outputs=outputs
+    )
 
     # Setup process and queues for multiprocessing.
     img_queue = Queue()

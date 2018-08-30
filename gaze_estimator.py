@@ -4,9 +4,13 @@ import numpy as np
 
 class GazeEstimator:
 
-    def __init__(self, gaze_model='model/mobileNet.pb', eye_image_size=224, face_image_size=224):
+    def __init__(self, gaze_model='model/mobileNet.pb', eye_image_size=224, face_image_size=224, inputs='input_1,input_2,input_3,input_4', outputs='output_node00'):
         self.eye_image_size = eye_image_size
         self.face_image_size = face_image_size
+        self.inputs = inputs.split(',')
+        self.outputs = outputs.split(',')
+        self.inputs = [ x + ':0' for x in self.inputs ]
+        self.outputs = [ x + ':0' for x in self.outputs ]
         # Get a TensorFlow session ready to do landmark detection
         # Load a (frozen) Tensorflow model into memory.
         gaze_graph = tf.Graph()
@@ -18,6 +22,9 @@ class GazeEstimator:
                 tf.import_graph_def(od_graph_def, name='')
         self.graph = gaze_graph
         self.sess = tf.Session(graph=gaze_graph)
+        # get output tensor by name
+        self.outputs = [self.graph.get_tensor_by_name(x) for x in self.outputs]
+        self.inputs = [self.graph.get_tensor_by_name(x) for x in self.inputs]
 
     @staticmethod
     def crop(image, box):
@@ -48,17 +55,14 @@ class GazeEstimator:
         faceGrid = self.resize(face_grid, 25)
         faceGrid = np.reshape(faceGrid, 625)
 
-        # get output tensor by name
-        output_tensor = self.graph.get_tensor_by_name('output_node00:0')
-
         # now actually run prediction
         prediction = self.sess.run(
-            output_tensor,
+            self.outputs[0],
             feed_dict={
-                'input_1:0': [leftEye],
-                'input_2:0': [rightEye],
-                'input_3:0': [face],
-                'input_4:0': [faceGrid]
+                self.inputs[0]: [leftEye],
+                self.inputs[1]: [rightEye],
+                self.inputs[2]: [face],
+                self.inputs[3]: [faceGrid]
             })
 
         # convert prediction to gaze
