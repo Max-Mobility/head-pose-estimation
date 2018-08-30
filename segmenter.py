@@ -394,8 +394,10 @@ def main():
                             marks[:, 0] += facebox[0]
                             marks[:, 1] += facebox[1]
 
+                            width = image.shape[0]
+                            height = image.shape[1]
                             # segment the image based on markers and facebox
-                            seg = Segmenter(facebox, marks, image.shape[0], image.shape[1])
+                            seg = Segmenter(facebox, marks, width, height)
                             segmentJSON = seg.getSegmentJSON()
 
                             # Try pose estimation with 68 points.
@@ -418,14 +420,15 @@ def main():
         done_queue.put(True)
 
     # get directory to subjects
+    import glob
     base_path = args["input_folder"]
-    train_path = base_path + '/train'
-    test_path = base_path + '/test'
-    validate_path = base_path + '/validate'
+    train_path = base_path + '/train/*'
+    test_path = base_path + '/test/*'
+    validate_path = base_path + '/validate/*'
     subjectDirs = [
-        os.listdir(path=train_path),
-        os.listdir(path=test_path),
-        os.listdir(path=validate_path)
+        glob.glob(train_path),
+        glob.glob(test_path),
+        glob.glob(validate_path)
     ]
     # flatten the directories
     subjectDirs = [item for sublist in subjectDirs for item in sublist]
@@ -460,7 +463,7 @@ def main():
     while True:
         if sub_queue.qsize() < max_queue_size and num_subjects_processed < num_subjects:
             subDir = subjectDirs[num_subjects_processed]
-            subject = Subject(path + '/' + subDir)
+            subject = Subject(subDir)
             # feed subject into subject queue.
             sub_queue.put(subject)
             # update the number of subjects we have processed
