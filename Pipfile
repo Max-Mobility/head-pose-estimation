@@ -15,7 +15,7 @@ pygame = "*"
 socketio-client-nexus = "*"
 argparse = "*"
 pandas = "*"
-pyautogui
+pyautogui = "*"
 
 [requires]
 python_version = "3.7"
