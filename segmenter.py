@@ -125,28 +125,28 @@ class Subject:
             'Y': [],
             'W': [],
             'H': [],
-            'isValid': []
+            'IsValid': []
         }
         self.rightEyeJSON = {
             'X': [],
             'Y': [],
             'W': [],
             'H': [],
-            'isValid': []
+            'IsValid': []
         }
         self.faceJSON = {
             'X': [],
             'Y': [],
             'W': [],
             'H': [],
-            'isValid': []
+            'IsValid': []
         }
         self.faceGridJSON = {
             'X': [],
             'Y': [],
             'W': [],
             'H': [],
-            'isValid': []
+            'IsValid': []
         }
 
     def addSegments(self, index, segmentJSON=None):
@@ -156,22 +156,22 @@ class Subject:
         self.leftEyeJSON['Y'].append(0)
         self.leftEyeJSON['W'].append(0)
         self.leftEyeJSON['H'].append(0)
-        self.leftEyeJSON['isValid'].append(0)
+        self.leftEyeJSON['IsValid'].append(0)
         self.rightEyeJSON['X'].append(0)
         self.rightEyeJSON['Y'].append(0)
         self.rightEyeJSON['W'].append(0)
         self.rightEyeJSON['H'].append(0)
-        self.rightEyeJSON['isValid'].append(0)
+        self.rightEyeJSON['IsValid'].append(0)
         self.faceJSON['X'].append(0)
         self.faceJSON['Y'].append(0)
         self.faceJSON['W'].append(0)
         self.faceJSON['H'].append(0)
-        self.faceJSON['isValid'].append(0)
+        self.faceJSON['IsValid'].append(0)
         self.faceGridJSON['X'].append(0)
         self.faceGridJSON['Y'].append(0)
         self.faceGridJSON['W'].append(0)
         self.faceGridJSON['H'].append(0)
-        self.faceGridJSON['isValid'].append(0)
+        self.faceGridJSON['IsValid'].append(0)
         if segmentJSON is not None:
             # update leftEyeJSON
             le = segmentJSON["leftEye"]
@@ -179,21 +179,21 @@ class Subject:
             self.leftEyeJSON['Y'][index] = le[1]
             self.leftEyeJSON['W'][index] = le[2] - le[0]
             self.leftEyeJSON['H'][index] = le[3] - le[1]
-            self.leftEyeJSON['isValid'][index] = 1
+            self.leftEyeJSON['IsValid'][index] = 1
             # update rightEyeJSON
             re = segmentJSON["rightEye"]
             self.rightEyeJSON['X'][index] = re[0]
             self.rightEyeJSON['Y'][index] = re[1]
             self.rightEyeJSON['W'][index] = re[2] - re[0]
             self.rightEyeJSON['H'][index] = re[3] - re[1]
-            self.rightEyeJSON['isValid'][index] = 1
+            self.rightEyeJSON['IsValid'][index] = 1
             # update faceJSON
             f = segmentJSON["face"]
             self.faceJSON['X'][index] = f[0]
             self.faceJSON['Y'][index] = f[1]
             self.faceJSON['W'][index] = f[2] - f[0]
             self.faceJSON['H'][index] = f[3] - f[1]
-            self.faceJSON['isValid'][index] = 1
+            self.faceJSON['IsValid'][index] = 1
             # update faceGridJSON
             # Note: FG is 1-indexed, so we must add one
             fg = segmentJSON["faceGridBB"]
@@ -201,7 +201,7 @@ class Subject:
             self.faceGridJSON['Y'][index] = fg[1] + 1
             self.faceGridJSON['W'][index] = fg[2] - fg[0]
             self.faceGridJSON['H'][index] = fg[3] - fg[1]
-            self.faceGridJSON['isValid'][index] = 1
+            self.faceGridJSON['IsValid'][index] = 1
 
     def writeSegmentFiles(self, folder):
         fullDir = self.path + '/' + folder
@@ -283,7 +283,7 @@ def main():
     ap.add_argument("-o", "--output-prefix", type=str, default="custom_segmentation",
                     help="Name / Prefix for output folder")
     ap.add_argument("-c", "--use-confidence", action="store_true", default=False,
-                    help="Flag to enable use of confidence as 'isValid' metric")
+                    help="Flag to enable use of confidence as 'IsValid' metric")
     ap.add_argument("-t", "--confidence-threshold", type=float, default=0.7,
                     help="Number of threads to spawn")
     ap.add_argument("-n", "--num-threads", type=int, default="10",
@@ -328,7 +328,7 @@ def main():
                                                              faceGrid['IsValid'])):
                 # we'll need to make sure all frames are processed so
                 # we must call Subject::addSegments for every frame -
-                # it will set isValid to False if segmentJSON is None
+                # it will set IsValid to False if segmentJSON is None
                 segmentJSON = None
                 # Check if cur frame is valid
                 if(use_confidence or fv*lv*rv*fgv == 1):
