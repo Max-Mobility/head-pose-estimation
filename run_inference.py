@@ -86,7 +86,7 @@ def main():
                     help="")
     ap.add_argument("-e", "--eye-size", type=int, default=224,
                     help="")
-    ap.add_argument("-f", "--face-size", type=str, default=224,
+    ap.add_argument("-f", "--face-size", type=int, default=224,
                     help="")
     ap.add_argument("-i", "--inputs", type=str, default='input_1,input_2,input_3,input_4',
                     help="")
