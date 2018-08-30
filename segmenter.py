@@ -41,7 +41,12 @@ class Segmenter:
     def makeBB(self, kp, px=0, py=0):
         x = [x[0] for x in kp]
         y = [x[1] for x in kp]
-        bbox = max(np.min(x) - px, 0), max(np.min(y) - py, 0), min(np.max(x) + px, self.width), min(np.max(y) + py, self.height)
+        bbox = [
+            max(np.min(x) - px, 0),
+            max(np.min(y) - py, 0),
+            min(np.max(x) + px, self.width),
+            min(np.max(y) + py, self.height)
+        ]
         return MarkDetector.get_square_box([int(x) for x in bbox], [self.height, self.width])
 
     def getLeftEyeBB(self):
@@ -171,7 +176,7 @@ class Subject:
         }
 
     def addPose(self, index, confidence=0.0, pose=None):
-        self.poseJSON['Confidence'].append(confidence)
+        self.poseJSON['Confidence'].append(float(confidence))
         self.poseJSON['HeadPose'].append([])
         if pose is not None:
             self.poseJSON['HeadPose'][index] = pose
@@ -403,7 +408,7 @@ def main():
                             # Try pose estimation with 68 points.
                             pose_estimator = PoseEstimator(img_size=(height, width))
                             pose = pose_estimator.solve_pose_by_68_points(marks)
-                            pose = np.array(pose).flatten()
+                            pose = [float(item) for sublist in pose for item in sublist]
                         except cv2.error as inst:
                             print("Error processing subject:", subjectID,'frame:', i, inst)
                 # add segment data to subject

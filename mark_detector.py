@@ -148,7 +148,12 @@ class MarkDetector:
         # Make sure box is always square.
         assert ((right_x - left_x) == (bottom_y - top_y)), 'Box is not square.'
 
-        return [max(left_x, 0), max(top_y, 0), min(right_x, imageShape[1]), min(bottom_y, imageShape[0])]
+        return [
+            max(left_x, 0),
+            max(top_y, 0),
+            min(right_x, imageShape[1]),
+            min(bottom_y, imageShape[0])
+        ]
 
     @staticmethod
     def box_in_image(box, image):
