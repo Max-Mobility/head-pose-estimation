@@ -96,7 +96,24 @@ class Segmenter:
                 faceGrid[j][i] = 1
         return faceGrid
 
+    @staticmethod
+    def isValidBB(bb):
+        w = bb[2] - bb[0]
+        h = bb[3] - bb[1]
+        return bb[0] >= 0 and \
+            bb[1] >= 0 and \
+            w > 0 and \
+            h > 0
+
+    def isValid(self):
+        return self.isValidBB(self.leBB) and \
+            self.isValidBB(self.reBB) and \
+            self.isValidBB(self.faceBB) and \
+            self.isValidBB(self.faceGridBB)
+
     def getSegmentJSON(self):
+        if not self.isValid():
+            return None
         return {
             'leftEye': self.leBB,
             'rightEye': self.reBB,
