@@ -136,15 +136,15 @@ def main():
                               args=(detector, confidence_threshold, img_queue, box_queue))
         box_process.start()
 
+    detectorWidth = 400
+    originalWidth = sample_frame.shape[1]
+    factor = originalWidth / detectorWidth
     while True:
         start = time.time()
         # Read frame, crop it, flip it, suits your needs.
         frame_got, frame = cam.read()
         if frame_got is False:
             break
-
-        # Crop it if frame is larger than expected.
-        # frame = frame[0:480, 300:940]
 
         # If frame comes from webcam, flip it so it looks like a mirror.
         if video_src == 0:
@@ -163,8 +163,10 @@ def main():
                 for box in boxes:
                     # compute the bounding box of the face and draw it on the
                     # frame
-                    (bX, bY, bW, bH) = face_utils.rect_to_bb(box)
-                    cv2.rectangle(frame, (bX, bY), (bX + bW, bY + bH),
+                    box = face_utils.rect_to_bb(box)
+                    
+                    [bX, bY, bW, bH] = box
+                    cv2.rectangle(frame, (int(bX*factor), int(bY*factor)), (int((bX + bW)*factor), int((bY + bH)*factor)),
                                   (0, 255, 0), 1)
             # determine the facial landmarks for the face region, then
             # convert the facial landmark (x, y)-coordinates to a NumPy
@@ -175,13 +177,16 @@ def main():
             # loop over the (x, y)-coordinates for the facial landmarks
             # and draw each of them
             for (i, (x, y)) in enumerate(shape):
+                [x,y] = [int(x*factor),int(y*factor)]
                 cv2.circle(frame, (x, y), 1, (0, 0, 255), -1)
                 cv2.putText(frame, str(i + 1), (x - 10, y - 10),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 0, 255), 1)
 
             '''
             # segment the image based on markers and facebox
-            seg = Segmenter(facebox, marks, frame.shape[1], frame.shape[0])
+            leftEyeMarks = shape[0:2]
+            rightEyeMarks = shape[2:4]
+            seg = Segmenter(rect, leftEyeMarks, rightEyeMarks, frame.shape[1], frame.shape[0])
             if args["draw_segmented"]:
                 mark_detector.draw_box(frame, seg.getSegmentBBs())
                 cv2.imshow("fg", seg.getSegmentJSON()["faceGrid"])
@@ -205,7 +210,6 @@ def main():
             #print((x,y))
             pyautogui.moveTo(x,y)
             '''
-
         # Show preview.
         cv2.imshow("Preview", frame)
         if cv2.waitKey(1) == 27: # sadly adds 1 ms of wait :(
