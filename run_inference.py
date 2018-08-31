@@ -141,6 +141,7 @@ def main():
     detectorWidth = 400
     originalWidth = sample_frame.shape[1]
     factor = originalWidth / detectorWidth
+    faceBoxScale = 1.1
     while True:
         start = time.time()
         # Read frame, crop it, flip it, suits your needs.
@@ -163,8 +164,8 @@ def main():
         def get_box(box):
             b = face_utils.rect_to_bb(box)
             [x1, y1, bW, bH] = b
-            x2 = int((x1 + bW)*factor)
-            y2 = int((y1 + bH)*factor)
+            x2 = int((x1 + bW * faceBoxScale)*factor)
+            y2 = int((y1 + bH * faceBoxScale)*factor)
             x1 = int(x1*factor)
             y1 = int(y1*factor)
             return [x1, y1, x2, y2]
@@ -176,8 +177,6 @@ def main():
         if boxes is not None and len(boxes) > 0:
             if args["draw_confidence"]:
                 for box in boxes:
-                    # compute the bounding box of the face and draw it on the
-                    # frame
                     draw_box(frame, get_box(box))
             # determine the facial landmarks for the face region, then
             # convert the facial landmark (x, y)-coordinates to a NumPy
@@ -205,9 +204,10 @@ def main():
             seg = Segmenter(rect, leftEyeMarks, rightEyeMarks, frame.shape[1], frame.shape[0])
             segments = seg.getSegmentJSON()
             if args["draw_segmented"]:
+                draw_box(frame, rect)
                 draw_box(frame, segments["leftEye"])
                 draw_box(frame, segments["rightEye"])
-                draw_box(frame, segments["face"])
+                #draw_box(frame, segments["face"])
                 #cv2.imshow("fg", segments["faceGrid"])
 
             # detect gaze
