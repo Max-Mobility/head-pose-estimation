@@ -83,6 +83,8 @@ def main():
                     help="")
     ap.add_argument("-s", "--draw-segmented", action="store_true", default=False,
                     help="")
+    ap.add_argument("-d", "--detect-gaze", action="store_true", default=False,
+                    help="")
     ap.add_argument("-g", "--gaze-net", type=str, default='model/mobileNet.pb',
                     help="")
     ap.add_argument("-e", "--eye-size", type=int, default=224,
@@ -204,20 +206,20 @@ def main():
                     frame, marks, color=(0, 255, 0))
 
             # detect gaze
-            segments = seg.getSegmentJSON()
-            gaze = gaze_detector.detect_gaze(
-                frame,
-                segments["leftEye"],
-                segments["rightEye"],
-                segments["face"],
-                segments["faceGrid"]
-            )
-            end = time.time()
-            gaze[0] = -gaze[0]
-            print(gaze)
-            x,y = screen.cm2Px(gaze)
-            #print((x,y))
-            pyautogui.moveTo(x,y)
+            if args["detect_gaze"]:
+                segments = seg.getSegmentJSON()
+                gaze = gaze_detector.detect_gaze(
+                    frame,
+                    segments["leftEye"],
+                    segments["rightEye"],
+                    segments["face"],
+                    segments["faceGrid"]
+                )
+                gaze[0] = -gaze[0]
+                print(gaze)
+                x,y = screen.cm2Px(gaze)
+                #print((x,y))
+                pyautogui.moveTo(x,y)
 
             # Try pose estimation with 68 points.
             pose = pose_estimator.solve_pose_by_68_points(marks)
@@ -242,6 +244,7 @@ def main():
         cv2.imshow("Preview", frame)
         if cv2.waitKey(1) == 27: # sadly adds 1 ms of wait :(
             break
+        end = time.time()
         diff = end - start
         print("FPS:",1/diff)
 
