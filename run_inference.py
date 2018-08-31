@@ -12,6 +12,7 @@ detect_os()
 from multiprocessing import Process, Queue
 import threading
 
+import time
 import argparse
 import numpy as np
 
@@ -146,6 +147,7 @@ def main():
         cov_measure=0.1) for _ in range(6)]
 
     while True:
+        start = time.time()
         # Read frame, crop it, flip it, suits your needs.
         frame_got, frame = cam.read()
         if frame_got is False:
@@ -210,6 +212,7 @@ def main():
                 segments["face"],
                 segments["faceGrid"]
             )
+            end = time.time()
             gaze[0] = -gaze[0]
             print(gaze)
             x,y = screen.cm2Px(gaze)
@@ -237,8 +240,10 @@ def main():
 
         # Show preview.
         cv2.imshow("Preview", frame)
-        if cv2.waitKey(10) == 27:
+        if cv2.waitKey(1) == 27: # sadly adds 1 ms of wait :(
             break
+        diff = end - start
+        print("FPS:",1/diff)
 
     # Clean up the multiprocessing process.
     if not isWindows():
