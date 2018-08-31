@@ -82,6 +82,8 @@ def main():
                     help="")
     ap.add_argument("-s", "--draw-segmented", action="store_true", default=False,
                     help="")
+    ap.add_argument("-d", "--detect-gaze", action="store_true", default=False,
+                    help="")
     ap.add_argument("-g", "--gaze-net", type=str, default='model/mobileNet.pb',
                     help="")
     ap.add_argument("-e", "--eye-size", type=int, default=224,
@@ -158,16 +160,25 @@ def main():
         # Get face from box queue.
         boxes = box_queue.get()
 
+        def get_box(box):
+            b = face_utils.rect_to_bb(box)
+            [x1, y1, bW, bH] = b
+            x2 = int((x1 + bW)*factor)
+            y2 = int((y1 + bH)*factor)
+            x1 = int(x1*factor)
+            y1 = int(y1*factor)
+            return [x1, y1, x2, y2]
+
+        def draw_box(img, box, color=(0,255,0)):
+            [x1, y1, x2, y2] = box
+            cv2.rectangle(img, (x1, y1), (x2, y2), color, 1)
+
         if boxes is not None and len(boxes) > 0:
             if args["draw_confidence"]:
                 for box in boxes:
                     # compute the bounding box of the face and draw it on the
                     # frame
-                    box = face_utils.rect_to_bb(box)
-                    
-                    [bX, bY, bW, bH] = box
-                    cv2.rectangle(frame, (int(bX*factor), int(bY*factor)), (int((bX + bW)*factor), int((bY + bH)*factor)),
-                                  (0, 255, 0), 1)
+                    draw_box(frame, get_box(box))
             # determine the facial landmarks for the face region, then
             # convert the facial landmark (x, y)-coordinates to a NumPy
             # array
@@ -176,40 +187,43 @@ def main():
             shape = face_utils.shape_to_np(shape)
             # loop over the (x, y)-coordinates for the facial landmarks
             # and draw each of them
+            leftEyeMarks = []
+            rightEyeMarks = []
             for (i, (x, y)) in enumerate(shape):
                 [x,y] = [int(x*factor),int(y*factor)]
-                cv2.circle(frame, (x, y), 1, (0, 0, 255), -1)
-                cv2.putText(frame, str(i + 1), (x - 10, y - 10),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 0, 255), 1)
+                if i == 0 or i ==1:
+                    leftEyeMarks.append([x,y])
+                if i == 2 or i ==3:
+                    rightEyeMarks.append([x,y])
+                if args["draw_markers"]:
+                    cv2.circle(frame, (x, y), 1, (0, 0, 255), -1)
+                    cv2.putText(frame, str(i + 1), (x - 10, y - 10),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 0, 255), 1)
 
-            '''
             # segment the image based on markers and facebox
-            leftEyeMarks = shape[0:2]
-            rightEyeMarks = shape[2:4]
+            rect = get_box(rect)
             seg = Segmenter(rect, leftEyeMarks, rightEyeMarks, frame.shape[1], frame.shape[0])
             if args["draw_segmented"]:
-                mark_detector.draw_box(frame, seg.getSegmentBBs())
+                draw_box(frame, seg.getSegmentJSON()["leftEye"])
+                draw_box(frame, seg.getSegmentJSON()["rightEye"])
+                draw_box(frame, seg.getSegmentJSON()["face"])
                 cv2.imshow("fg", seg.getSegmentJSON()["faceGrid"])
-
-            if args["draw_markers"]:
-                mark_detector.draw_marks(
-                    frame, marks, color=(0, 255, 0))
 
             # detect gaze
             segments = seg.getSegmentJSON()
-            gaze = gaze_detector.detect_gaze(
-                frame,
-                segments["leftEye"],
-                segments["rightEye"],
-                segments["face"],
-                segments["faceGrid"]
-            )
-            gaze[0] = -gaze[0]
-            print(gaze)
-            x,y = screen.cm2Px(gaze)
-            #print((x,y))
-            pyautogui.moveTo(x,y)
-            '''
+            if args["detect_gaze"]:
+                gaze = gaze_detector.detect_gaze(
+                    frame,
+                    segments["leftEye"],
+                    segments["rightEye"],
+                    segments["face"],
+                    segments["faceGrid"]
+                )
+                gaze[0] = -gaze[0]
+                print(gaze)
+                x,y = screen.cm2Px(gaze)
+                #print((x,y))
+                pyautogui.moveTo(x,y)
         # Show preview.
         cv2.imshow("Preview", frame)
         if cv2.waitKey(1) == 27: # sadly adds 1 ms of wait :(
