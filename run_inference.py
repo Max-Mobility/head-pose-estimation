@@ -203,24 +203,24 @@ def main():
             # segment the image based on markers and facebox
             rect = get_box(rect)
             seg = Segmenter(rect, leftEyeMarks, rightEyeMarks, frame.shape[1], frame.shape[0])
+            segments = seg.getSegmentJSON()
             if args["draw_segmented"]:
-                draw_box(frame, seg.getSegmentJSON()["leftEye"])
-                draw_box(frame, seg.getSegmentJSON()["rightEye"])
-                draw_box(frame, seg.getSegmentJSON()["face"])
-                cv2.imshow("fg", seg.getSegmentJSON()["faceGrid"])
+                draw_box(frame, segments["leftEye"])
+                draw_box(frame, segments["rightEye"])
+                draw_box(frame, segments["face"])
+                #cv2.imshow("fg", segments["faceGrid"])
 
             # detect gaze
-            segments = seg.getSegmentJSON()
             if args["detect_gaze"]:
                 gaze = gaze_detector.detect_gaze(
                     frame,
                     segments["leftEye"],
                     segments["rightEye"],
-                    segments["face"],
+                    rect,#segments["face"],
                     segments["faceGrid"]
                 )
                 gaze[0] = -gaze[0]
-                print(gaze)
+                #print(gaze)
                 x,y = screen.cm2Px(gaze)
                 #print((x,y))
                 pyautogui.moveTo(x,y)
