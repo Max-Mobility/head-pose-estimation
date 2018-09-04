@@ -28,8 +28,6 @@ import utils
 from gaze_estimator import GazeEstimator
 from segmenter import Segmenter
 
-CNN_INPUT_SIZE = 128
-
 class Screen:
     def __init__(self, screenSize = (3000,2000)):
         self.screenSize = screenSize
@@ -74,6 +72,8 @@ def main():
 
     # construct the argument parse and parse the arguments
     ap = argparse.ArgumentParser()
+    ap.add_argument("-v", "--video-src", type=int, default=0,
+                    help="video source index")
     ap.add_argument("-c", "--draw-confidence", action="store_true", default=False,
                     help="draw the confidence on the face")
     ap.add_argument("-m", "--draw-markers", action="store_true", default=False,
@@ -103,9 +103,14 @@ def main():
 
 
     # Video source from webcam or video file.
-    video_src = 0
+    video_src = args["video_src"]
     cam = cv2.VideoCapture(video_src)
     _, sample_frame = cam.read()
+
+    if sample_frame is None:
+        print("Could not open video source", video_src)
+        print("Exiting!")
+        return
 
     # Introduce mark_detector to detect landmarks.
     gaze_model = args["gaze_net"]

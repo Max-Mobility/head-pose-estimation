@@ -6,16 +6,13 @@ name = "pypi"
 [dev-packages]
 
 [packages]
+imutils = "*"
+numpy = "*"
 tensorflow = "*"
-keras = "*"
 opencv-python = "*"
-"progressbar2" = "*"
-tensorboard = "*"
-pygame = "*"
 socketio-client-nexus = "*"
 argparse = "*"
-pandas = "*"
 pyautogui = "*"
 
 [requires]
-python_version = "3.7"
+python_version = "3.6"
