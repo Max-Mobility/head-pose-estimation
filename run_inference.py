@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """Demo code shows how to estimate human head pose.
 Currently, human face is detected by a detector from an OpenCV DNN module.
 Then the face box is modified a little to suits the need of landmark
@@ -21,11 +22,9 @@ import time
 import numpy as np
 
 import pyautogui
-
 import cv2
-from stabilizer import Stabilizer
-from gaze_estimator import GazeEstimator
 
+from gaze_estimator import GazeEstimator
 from segmenter import Segmenter
 
 CNN_INPUT_SIZE = 128
@@ -58,7 +57,7 @@ class Screen:
         return (max(0,min(self.screenSize[0], pos[0])),
                 max(0,min(self.screenSize[1], pos[1])))
 
-def get_face(detector, threshold, img_queue, box_queue):
+def get_face(detector, img_queue, box_queue):
     """Get face from image queue. This function is used for multiprocessing"""
     while True:
         image = img_queue.get()
@@ -75,30 +74,24 @@ def main():
     # construct the argument parse and parse the arguments
     ap = argparse.ArgumentParser()
     ap.add_argument("-m", "--draw-markers", action="store_true", default=False,
-                    help="")
-    ap.add_argument("-c", "--draw-confidence", action="store_true", default=False,
-                    help="")
-    ap.add_argument("-t", "--confidence-threshold", type=float, default=0.9,
-                    help="")
+                    help="draw the 5 face landmarks")
     ap.add_argument("-s", "--draw-segmented", action="store_true", default=False,
-                    help="")
+                    help="draw the eye and face bounding boxes")
     ap.add_argument("-d", "--detect-gaze", action="store_true", default=False,
-                    help="")
+                    help="enable gaze detection")
     ap.add_argument("-g", "--gaze-net", type=str, default='model/mobileNet.pb',
-                    help="")
+                    help="path to frozen gaze predictor model")
     ap.add_argument("-e", "--eye-size", type=int, default=224,
-                    help="")
+                    help="input image sizes for the eyes")
     ap.add_argument("-f", "--face-size", type=int, default=224,
-                    help="")
+                    help="input image size for the face")
     ap.add_argument("-i", "--inputs", type=str, default='input_1,input_2,input_3,input_4',
-                    help="")
+                    help="input tensor names, comma separated")
     ap.add_argument("-o", "--outputs", type=str, default='output_node00',
-                    help="")
+                    help="output tensor names, comma separated")
     ap.add_argument("-p", "--shape-predictor", required=True,
                     help="path to facial landmark predictor")
     args = vars(ap.parse_args())
-
-    confidence_threshold = args["confidence_threshold"]
 
     print("[INFO] loading facial landmark predictor...")
     detector = dlib.get_frontal_face_detector()
@@ -130,12 +123,12 @@ def main():
     #img_queue.put(sample_frame)
 
     if isWindows():
-        thread = threading.Thread(target=get_face, args=(detector, confidence_threshold, img_queue, box_queue))
+        thread = threading.Thread(target=get_face, args=(detector, img_queue, box_queue))
         thread.daemon = True
         thread.start()
     else:
         box_process = Process(target=get_face,
-                              args=(detector, confidence_threshold, img_queue, box_queue))
+                              args=(detector, img_queue, box_queue))
         box_process.start()
 
     detectorWidth = 400
@@ -177,9 +170,6 @@ def main():
             cv2.rectangle(img, (x1, y1), (x2, y2), color, 1)
 
         if boxes is not None and len(boxes) > 0:
-            if args["draw_confidence"]:
-                for box in boxes:
-                    draw_box(frame, get_box(box))
             # determine the facial landmarks for the face region, then
             # convert the facial landmark (x, y)-coordinates to a NumPy
             # array
