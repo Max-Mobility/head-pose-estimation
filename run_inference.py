@@ -29,29 +29,38 @@ from gaze_estimator import GazeEstimator
 from segmenter import Segmenter
 
 class Screen:
-    def __init__(self, screenSize = (3000,2000)):
-        self.screenSize = screenSize
+    availableDisplays = {
+        'Surface Pro 4': {
+            'camera': [13.0, -0.7],
+            'size': [26.0, 17.5]
+        },
+        'Surface Book': {
+            'camera': [14.25, -0.75],
+            'size': [28.5, 19.0]
+        },
+        'Desktop': {
+            'camera': [18.0, -1.5],
+            'size': [25.0, 15.0]
+        }
+    }
+    def __init__(self, display="Surface Pro 4"):
+        self.screenSize = pyautogui.size()
+        if display is None or display not in self.availableDisplays.keys():
+            raise ValueError("Bad screen provided, must be one of {}".format(list(self.availableDisplays.keys())))
         #Define camera and screen parameters
-        # for Surface Book
-        self.xCameraOffsetCm = (14.25) / 1.9 + 3.0
-        self.yCameraOffsetCm = -0.75
-        self.wScreenCm = 28.5 / 1.9
-        self.hScreenCm = 19.0 / 1.9
-        '''
-        # for william desktop
-        self.xCameraOffsetCm = 18.0
-        self.yCameraOffsetCm = -1.5
-        self.wScreenCm = 25.0
-        self.hScreenCm = 15.0
-        '''
+        self.xCameraOffsetCm = self.availableDisplays[display]['camera'][0]
+        self.yCameraOffsetCm = self.availableDisplays[display]['camera'][1]
+        self.wScreenCm = self.availableDisplays[display]['size'][0]
+        self.hScreenCm = self.availableDisplays[display]['size'][1]
         #Conversion factors to scale centimeters to screen pixels
         self.xCm2Px = self.screenSize[0]/self.wScreenCm
         self.yCm2Px = self.screenSize[1]/self.hScreenCm
 
     def cm2Px(self, coords):
+        factor = 1.2
         pos = [
-            round(self.xCm2Px*(coords[0] + self.xCameraOffsetCm)),
-            round(self.yCm2Px*(-1*coords[1] + self.yCameraOffsetCm))
+            round(self.xCm2Px*(coords[0] * factor + self.xCameraOffsetCm)),
+            round(self.yCm2Px*(-1*coords[1] * factor + self.yCameraOffsetCm))
         ]
         return (max(0,min(self.screenSize[0], pos[0])),
                 max(0,min(self.screenSize[1], pos[1])))
@@ -68,8 +77,6 @@ def main():
     """MAIN"""
     pyautogui.FAILSAFE = False
 
-    screen = Screen()
-
     # construct the argument parse and parse the arguments
     ap = argparse.ArgumentParser()
     ap.add_argument("-v", "--video-src", type=int, default=0,
@@ -84,6 +91,8 @@ def main():
                     help="enable gaze detection")
     ap.add_argument("-g", "--gaze-net", type=str, default='model/mobileNet.pb',
                     help="path to frozen gaze predictor model")
+    ap.add_argument("-r", "--screen", type=str, default='Surface Pro 4',
+                    help="screen that we are testing on")
     ap.add_argument("-e", "--eye-size", type=int, default=224,
                     help="input image sizes for the eyes")
     ap.add_argument("-f", "--face-size", type=int, default=224,
@@ -96,6 +105,8 @@ def main():
                     default='./model/shape_predictor_5_face_landmarks.dat',
                     help="path to facial landmark predictor")
     args = vars(ap.parse_args())
+
+    screen = Screen(args["screen"])
 
     print("[INFO] loading facial landmark predictor...")
     detector = dlib.get_frontal_face_detector()
