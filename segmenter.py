@@ -12,8 +12,7 @@ reIndices = [37,38,39,40,41,42]
 leIndices = [43,44,45,46,47,48]
 
 class Segmenter:
-    def __init__(self, faceBox, marks, width, height):
-        self.marks = marks
+    def __init__(self, faceBox, leftEyeMarks, rightEyeMarks, width, height):
         self.width = width
         self.height = height
         # face bb:
@@ -34,8 +33,8 @@ class Segmenter:
             faceBox[2] - diff + px + xo,
             faceBox[3] - diff + py + yo
         ]
-        self.leBB = self.getLeftEyeBB()
-        self.reBB = self.getRightEyeBB()
+        self.leBB = self.getEyeBB(leftEyeMarks)
+        self.reBB = self.getEyeBB(rightEyeMarks)
         self.faceGrid = self.getFaceGrid()
 
     def makeBB(self, kp, px=0, py=0):
@@ -49,11 +48,8 @@ class Segmenter:
         ]
         return MarkDetector.get_square_box([int(x) for x in bbox], [self.height, self.width])
 
-    def getLeftEyeBB(self):
-        return self.makeBB(self.marks[42:48], 10, 0)
-
-    def getRightEyeBB(self):
-        return self.makeBB(self.marks[36:42], 10, 0)
+    def getEyeBB(self, marks):
+        return self.makeBB(marks, 10, 0)
 
     def getFaceGrid(self):
         # make sure the facegrid is square

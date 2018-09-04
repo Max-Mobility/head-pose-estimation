@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """Demo code shows how to estimate human head pose.
 Currently, human face is detected by a detector from an OpenCV DNN module.
 Then the face box is modified a little to suits the need of landmark
@@ -12,18 +13,18 @@ detect_os()
 from multiprocessing import Process, Queue
 import threading
 
-import time
+from imutils import face_utils
+from imutils.video import VideoStream
+import dlib
 import argparse
+import imutils
+import time
 import numpy as np
 
 import pyautogui
-
 import cv2
-from mark_detector import MarkDetector
-from pose_estimator import PoseEstimator
-from stabilizer import Stabilizer
-from gaze_estimator import GazeEstimator
 
+from gaze_estimator import GazeEstimator
 from segmenter import Segmenter
 
 CNN_INPUT_SIZE = 128
@@ -56,15 +57,16 @@ class Screen:
         return (max(0,min(self.screenSize[0], pos[0])),
                 max(0,min(self.screenSize[1], pos[1])))
 
-def get_face(detector, threshold, img_queue, box_queue):
+def get_face(detector, img_queue, box_queue):
     """Get face from image queue. This function is used for multiprocessing"""
     while True:
         image = img_queue.get()
-        box = detector.extract_cnn_facebox(image, threshold)
-        box_queue.put(box)
+        boxes = detector(image, 0)
+        box_queue.put(boxes)
 
 
 def main():
+    """MAIN"""
     pyautogui.FAILSAFE = False
 
     screen = Screen()
@@ -72,41 +74,34 @@ def main():
     # construct the argument parse and parse the arguments
     ap = argparse.ArgumentParser()
     ap.add_argument("-m", "--draw-markers", action="store_true", default=False,
-                    help="")
-    ap.add_argument("-c", "--draw-confidence", action="store_true", default=False,
-                    help="")
-    ap.add_argument("-t", "--confidence-threshold", type=float, default=0.9,
-                    help="")
-    ap.add_argument("-p", "--draw-pose", action="store_false", default=True,
-                    help="")
-    ap.add_argument("-u", "--draw-unstable", action="store_true", default=False,
-                    help="")
+                    help="draw the 5 face landmarks")
     ap.add_argument("-s", "--draw-segmented", action="store_true", default=False,
-                    help="")
+                    help="draw the eye and face bounding boxes")
     ap.add_argument("-d", "--detect-gaze", action="store_true", default=False,
-                    help="")
+                    help="enable gaze detection")
     ap.add_argument("-g", "--gaze-net", type=str, default='model/mobileNet.pb',
-                    help="")
+                    help="path to frozen gaze predictor model")
     ap.add_argument("-e", "--eye-size", type=int, default=224,
-                    help="")
+                    help="input image sizes for the eyes")
     ap.add_argument("-f", "--face-size", type=int, default=224,
-                    help="")
+                    help="input image size for the face")
     ap.add_argument("-i", "--inputs", type=str, default='input_1,input_2,input_3,input_4',
-                    help="")
+                    help="input tensor names, comma separated")
     ap.add_argument("-o", "--outputs", type=str, default='output_node00',
-                    help="")
+                    help="output tensor names, comma separated")
+    ap.add_argument("-p", "--shape-predictor", required=True,
+                    help="path to facial landmark predictor")
     args = vars(ap.parse_args())
 
-    confidence_threshold = args["confidence_threshold"]
+    print("[INFO] loading facial landmark predictor...")
+    detector = dlib.get_frontal_face_detector()
+    predictor = dlib.shape_predictor(args["shape_predictor"])
 
-    """MAIN"""
+
     # Video source from webcam or video file.
     video_src = 0
     cam = cv2.VideoCapture(video_src)
     _, sample_frame = cam.read()
-
-    # Introduce mark_detector to detect landmarks.
-    mark_detector = MarkDetector()
 
     # Introduce mark_detector to detect landmarks.
     gaze_model = args["gaze_net"]
@@ -128,125 +123,109 @@ def main():
     #img_queue.put(sample_frame)
 
     if isWindows():
-        thread = threading.Thread(target=get_face, args=(mark_detector, confidence_threshold, img_queue, box_queue))
+        thread = threading.Thread(target=get_face, args=(detector, img_queue, box_queue))
         thread.daemon = True
         thread.start()
     else:
         box_process = Process(target=get_face,
-                              args=(mark_detector, confidence_threshold, img_queue, box_queue))
+                              args=(detector, img_queue, box_queue))
         box_process.start()
 
-    # Introduce pose estimator to solve pose. Get one frame to setup the
-    # estimator according to the image size.
-    height, width = sample_frame.shape[:2]
-    pose_estimator = PoseEstimator(img_size=(height, width))
-
-    # Introduce scalar stabilizers for pose.
-    pose_stabilizers = [Stabilizer(
-        state_num=2,
-        measure_num=1,
-        cov_process=0.1,
-        cov_measure=0.1) for _ in range(6)]
-
+    detectorWidth = 400
+    originalWidth = sample_frame.shape[1]
+    factor = originalWidth / detectorWidth
+    faceBoxScale = 1.1
+    # performance measurements
+    numFrames = 0
+    start = time.time()
     while True:
-        start = time.time()
         # Read frame, crop it, flip it, suits your needs.
         frame_got, frame = cam.read()
         if frame_got is False:
             break
 
-        # Crop it if frame is larger than expected.
-        # frame = frame[0:480, 300:940]
-
         # If frame comes from webcam, flip it so it looks like a mirror.
         if video_src == 0:
             frame = cv2.flip(frame, 2)
 
-        # Pose estimation by 3 steps:
-        # 1. detect face;
-        # 2. detect landmarks;
-        # 3. estimate pose
-
         # Feed frame to image queue.
-        img_queue.put(frame)
+        image = imutils.resize(frame, width=400)
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        img_queue.put(gray)
 
         # Get face from box queue.
-        result = box_queue.get()
+        boxes = box_queue.get()
 
-        if result is not None:
-            if args["draw_confidence"]:
-                mark_detector.face_detector.draw_result(frame, result)
-            # unpack result
-            facebox, confidence = result
-            # fix facebox if needed
-            if facebox[1] > facebox[3]:
-                facebox[1] = 0
-            if facebox[0] > facebox[2]:
-                facebox[0] = 0
-            # Detect landmarks from image of 128x128.
-            face_img = frame[facebox[1]: facebox[3],
-                             facebox[0]: facebox[2]]
-            face_img = cv2.resize(face_img, (CNN_INPUT_SIZE, CNN_INPUT_SIZE))
-            face_img = cv2.cvtColor(face_img, cv2.COLOR_BGR2RGB)
-            marks = mark_detector.detect_marks(face_img)
+        def get_box(box):
+            b = face_utils.rect_to_bb(box)
+            [x1, y1, bW, bH] = b
+            x2 = int((x1 + bW * faceBoxScale)*factor)
+            y2 = int((y1 + bH * faceBoxScale)*factor)
+            x1 = int(x1*factor)
+            y1 = int(y1*factor)
+            return [x1, y1, x2, y2]
 
-            # Convert the marks locations from local CNN to global image.
-            marks *= (facebox[2] - facebox[0])
-            marks[:, 0] += facebox[0]
-            marks[:, 1] += facebox[1]
+        def draw_box(img, box, color=(0,255,0)):
+            [x1, y1, x2, y2] = box
+            cv2.rectangle(img, (x1, y1), (x2, y2), color, 1)
+
+        if boxes is not None and len(boxes) > 0:
+            # determine the facial landmarks for the face region, then
+            # convert the facial landmark (x, y)-coordinates to a NumPy
+            # array
+            rect = boxes[0]
+            shape = predictor(gray, rect)
+            shape = face_utils.shape_to_np(shape)
+            # loop over the (x, y)-coordinates for the facial landmarks
+            # and draw each of them
+            leftEyeMarks = []
+            rightEyeMarks = []
+            for (i, (x, y)) in enumerate(shape):
+                [x,y] = [int(x*factor),int(y*factor)]
+                if i == 0 or i ==1:
+                    leftEyeMarks.append([x,y])
+                if i == 2 or i ==3:
+                    rightEyeMarks.append([x,y])
+                if args["draw_markers"]:
+                    cv2.circle(frame, (x, y), 1, (0, 0, 255), -1)
+                    cv2.putText(frame, str(i + 1), (x - 10, y - 10),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 0, 255), 1)
 
             # segment the image based on markers and facebox
-            seg = Segmenter(facebox, marks, frame.shape[1], frame.shape[0])
+            rect = get_box(rect)
+            seg = Segmenter(rect, leftEyeMarks, rightEyeMarks, frame.shape[1], frame.shape[0])
+            segments = seg.getSegmentJSON()
             if args["draw_segmented"]:
-                mark_detector.draw_box(frame, seg.getSegmentBBs())
-                cv2.imshow("fg", seg.getSegmentJSON()["faceGrid"])
-
-            if args["draw_markers"]:
-                mark_detector.draw_marks(
-                    frame, marks, color=(0, 255, 0))
+                draw_box(frame, rect)
+                draw_box(frame, segments["leftEye"])
+                draw_box(frame, segments["rightEye"])
+                #draw_box(frame, segments["face"])
+                #cv2.imshow("fg", segments["faceGrid"])
 
             # detect gaze
             if args["detect_gaze"]:
-                segments = seg.getSegmentJSON()
                 gaze = gaze_detector.detect_gaze(
                     frame,
                     segments["leftEye"],
                     segments["rightEye"],
-                    segments["face"],
+                    rect,#segments["face"],
                     segments["faceGrid"]
                 )
                 gaze[0] = -gaze[0]
-                print(gaze)
+                #print(gaze)
                 x,y = screen.cm2Px(gaze)
                 #print((x,y))
                 pyautogui.moveTo(x,y)
-
-            # Try pose estimation with 68 points.
-            pose = pose_estimator.solve_pose_by_68_points(marks)
-
-            # Stabilize the pose.
-            stable_pose = []
-            pose_np = np.array(pose).flatten()
-            for value, ps_stb in zip(pose_np, pose_stabilizers):
-                ps_stb.update([value])
-                stable_pose.append(ps_stb.state[0])
-            stable_pose = np.reshape(stable_pose, (-1, 3))
-
-            if args["draw_unstable"]:
-                pose_estimator.draw_annotation_box(
-                    frame, pose[0], pose[1], color=(255, 128, 128))
-
-            if args["draw_pose"]:
-                pose_estimator.draw_annotation_box(
-                    frame, stable_pose[0], stable_pose[1], color=(128, 255, 128))
-
+        # increment frame counter for performance measurements
+        numFrames += 1
         # Show preview.
         cv2.imshow("Preview", frame)
         if cv2.waitKey(1) == 27: # sadly adds 1 ms of wait :(
             break
-        end = time.time()
-        diff = end - start
-        print("FPS:",1/diff)
+
+    end = time.time()
+    diff = end - start
+    print("FPS:",numFrames/diff)
 
     # Clean up the multiprocessing process.
     if not isWindows():
