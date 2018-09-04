@@ -134,7 +134,7 @@ def main():
     detectorWidth = 400
     originalWidth = sample_frame.shape[1]
     factor = originalWidth / detectorWidth
-    faceBoxScale = 1.1
+    faceBoxScale = 0.15
     # performance measurements
     numFrames = 0
     start = time.time()
@@ -157,12 +157,16 @@ def main():
         boxes = box_queue.get()
 
         def get_box(box):
+            # scales the box back to the size of the image, keeping
+            # the box's center
             b = face_utils.rect_to_bb(box)
             [x1, y1, bW, bH] = b
-            x2 = int((x1 + bW * faceBoxScale)*factor)
-            y2 = int((y1 + bH * faceBoxScale)*factor)
-            x1 = int(x1*factor)
-            y1 = int(y1*factor)
+            dW = bW * factor * faceBoxScale / 2
+            dH = bH * factor * faceBoxScale / 2
+            x2 = int((x1 + bW)*factor + dW)
+            y2 = int((y1 + bH)*factor + dH)
+            x1 = int(x1*factor - dW)
+            y1 = int(y1*factor - dH)
             return [x1, y1, x2, y2]
 
         def draw_box(img, box, color=(0,255,0)):
@@ -225,6 +229,7 @@ def main():
 
     end = time.time()
     diff = end - start
+    print("Elapsed time:", diff)
     print("FPS:",numFrames/diff)
 
     # Clean up the multiprocessing process.
