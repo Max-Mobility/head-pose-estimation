@@ -160,6 +160,7 @@ def main():
     originalWidth = sample_frame.shape[1]
     factor = originalWidth / detectorWidth
     faceBoxScale = 0.15
+    flip = True
     # performance measurements
     numFrames = 0
     start = time.time()
@@ -169,8 +170,8 @@ def main():
         if frame_got is False:
             break
 
-        # If frame comes from webcam, flip it so it looks like a mirror.
-        if video_src == 0:
+        if flip:
+            # flip it so it looks like a mirror.
             frame = cv2.flip(frame, 2)
 
         # Feed frame to image queue.
@@ -231,7 +232,8 @@ def main():
                     segments["face"],
                     segments["faceGrid"]
                 )
-                gaze[0] = -gaze[0]
+                if flip:
+                    gaze[0] = -gaze[0]
                 #print(gaze)
                 x,y = screen.cm2Px(gaze)
                 #print((x,y))
