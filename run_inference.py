@@ -39,8 +39,8 @@ class Screen:
             'size': [28.5, 19.0]
         },
         'Desktop': {
-            'camera': [12.5, -1.5],
-            'size': [25.0, 15.0]
+            'camera': [15.0, -1.5],
+            'size': [60.0, 15.0]
         }
     }
     def __init__(self, display="Surface Pro 4"):
