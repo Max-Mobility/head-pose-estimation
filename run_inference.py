@@ -142,8 +142,10 @@ def main():
     originalWidth = sample_frame.shape[1]
     factor = originalWidth / detectorWidth
     faceBoxScale = 1.1
+    # performance measurements
+    numFrames = 0
+    start = time.time()
     while True:
-        start = time.time()
         # Read frame, crop it, flip it, suits your needs.
         frame_got, frame = cam.read()
         if frame_got is False:
@@ -224,13 +226,16 @@ def main():
                 x,y = screen.cm2Px(gaze)
                 #print((x,y))
                 pyautogui.moveTo(x,y)
+        # increment frame counter for performance measurements
+        numFrames += 1
         # Show preview.
         cv2.imshow("Preview", frame)
         if cv2.waitKey(1) == 27: # sadly adds 1 ms of wait :(
             break
-        end = time.time()
-        diff = end - start
-        print("FPS:",1/diff)
+
+    end = time.time()
+    diff = end - start
+    print("FPS:",numFrames/diff)
 
     # Clean up the multiprocessing process.
     if not isWindows():
