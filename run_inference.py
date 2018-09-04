@@ -92,7 +92,8 @@ def main():
                     help="input tensor names, comma separated")
     ap.add_argument("-o", "--outputs", type=str, default='output_node00',
                     help="output tensor names, comma separated")
-    ap.add_argument("-p", "--shape-predictor", required=True,
+    ap.add_argument("-p", "--shape-predictor", type=str,
+                    default='./model/shape_predictor_5_face_landmarks.dat',
                     help="path to facial landmark predictor")
     args = vars(ap.parse_args())
 
@@ -199,7 +200,6 @@ def main():
                 utils.draw_box(frame, segments["leftEye"])
                 utils.draw_box(frame, segments["rightEye"])
                 utils.draw_box(frame, segments["face"])
-                #cv2.imshow("fg", segments["faceGrid"])
 
             # detect gaze
             if segments is not None and args["detect_gaze"]:

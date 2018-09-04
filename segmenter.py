@@ -5,7 +5,6 @@ detect_os()
 import json
 import numpy as np
 import cv2
-from imutils import face_utils
 
 import utils
 
@@ -306,7 +305,10 @@ class Subject:
 
 def main():
     import sys
+    import imutils
+    from imutils import face_utils
     from functools import reduce
+    import dlib
     import time
     import argparse
     import queue as Q
@@ -361,7 +363,7 @@ def main():
             dotInfo = subject.getDotJSON()
 
             # Iterate over frames for the current subject
-            for i, (frame, fv, lv, rv, fgv) in enumerate(zip(frameNames,
+            for index, (frame, fv, lv, rv, fgv) in enumerate(zip(frameNames,
                                                              face['IsValid'],
                                                              leftEye['IsValid'],
                                                              rightEye['IsValid'],
@@ -382,7 +384,7 @@ def main():
                     factor = originalWidth / detectorWidth
                     frame = imutils.resize(image, width=detectorWidth)
                     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                    dets, scores, idx = detector.run(gray, 0, -1)
+                    dets, scores, idx = detector.run(gray, 0)
 
                     if dets is not None and len(dets) > 0:
                         facebox = dets[0]
@@ -412,10 +414,10 @@ def main():
                             )
                             segmentJSON = seg.getSegmentJSON()
                         except cv2.error as inst:
-                            print("Error processing subject:", subjectID,'frame:', i, inst)
+                            print("Error processing subject:", subjectID,'frame:', index, inst)
                 # add segment data to subject
-                subject.addSegments(i, segmentJSON)
-                subject.addPose(i, confidence, pose)
+                subject.addSegments(index, segmentJSON)
+                subject.addPose(index, confidence, pose)
 
             # write out the metadata file
             subject.writeSegmentFiles(output_prefix)
