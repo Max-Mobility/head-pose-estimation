@@ -15,6 +15,7 @@ class Segmenter:
     def __init__(self, faceBox, leftEyeMarks, rightEyeMarks, width, height):
         self.width = width
         self.height = height
+        '''
         # face bb:
         size = faceBox[2] - faceBox[0]
         # offsets
@@ -33,6 +34,8 @@ class Segmenter:
             faceBox[2] - diff + px + xo,
             faceBox[3] - diff + py + yo
         ]
+        '''
+        self.faceBB = faceBox
         self.leBB = self.getEyeBB(leftEyeMarks)
         self.reBB = self.getEyeBB(rightEyeMarks)
         self.faceGrid = self.getFaceGrid()

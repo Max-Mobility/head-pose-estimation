@@ -200,10 +200,9 @@ def main():
             seg = Segmenter(rect, leftEyeMarks, rightEyeMarks, frame.shape[1], frame.shape[0])
             segments = seg.getSegmentJSON()
             if args["draw_segmented"]:
-                draw_box(frame, rect)
                 draw_box(frame, segments["leftEye"])
                 draw_box(frame, segments["rightEye"])
-                #draw_box(frame, segments["face"])
+                draw_box(frame, segments["face"])
                 #cv2.imshow("fg", segments["faceGrid"])
 
             # detect gaze
@@ -212,7 +211,7 @@ def main():
                     frame,
                     segments["leftEye"],
                     segments["rightEye"],
-                    rect,#segments["face"],
+                    segments["face"],
                     segments["faceGrid"]
                 )
                 gaze[0] = -gaze[0]

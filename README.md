@@ -32,9 +32,6 @@ There are three major steps:
   filter is used to solve this problem, you can draw the original pose
   to observe the difference.
 
-- The build in face detector comes from
-  OpenCV. https://github.com/opencv/opencv/tree/master/samples/dnn/face_detector
-
 ## How To Use
 
 ```bash
