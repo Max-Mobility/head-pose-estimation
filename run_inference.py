@@ -49,26 +49,29 @@ class Screen:
     def __init__(self, display="Surface Pro 4"):
         # make sure we have a valid display
         if display is None or display not in self.availableDisplays.keys():
-            raise ValueError("Bad screen provided, must be one of {}".format(list(self.availableDisplays.keys())))
+            err = "Bad screen provided, must be one of {}".format(
+                list(self.availableDisplays.keys())
+            )
+            raise ValueError(err)
         # get the size of the screen (pixels)
-        self.screenSize = pyautogui.size()
+        self.pixels = pyautogui.size()
         # Define camera and screen parameters
-        self.xCameraOffsetCm = self.availableDisplays[display]['camera'][0]
-        self.yCameraOffsetCm = self.availableDisplays[display]['camera'][1]
-        self.wScreenCm = self.availableDisplays[display]['size'][0]
-        self.hScreenCm = self.availableDisplays[display]['size'][1]
+        self.camera = self.availableDisplays[display]['camera']
+        self.size = self.availableDisplays[display]['size']
         # Conversion factors to scale centimeters to screen pixels
-        self.xCm2Px = self.screenSize[0]/self.wScreenCm
-        self.yCm2Px = self.screenSize[1]/self.hScreenCm
+        self.conversion = [
+            self.pixels[0] / self.size[0],
+            self.pixels[1] / self.size[1]
+        ]
         self.coordFactors = self.availableDisplays[display]['coordFactors']
 
     def cm2Px(self, coords):
         pos = [
-            round(self.xCm2Px*(coords[0] * self.coordFactors[0] + self.xCameraOffsetCm)),
-            round(self.yCm2Px*(-1*coords[1] * self.coordFactors[1] + self.yCameraOffsetCm))
+            round(self.conversion[0]*(coords[0] * self.coordFactors[0] + self.camera[0])),
+            round(self.conversion[1]*(-1*coords[1] * self.coordFactors[1] + self.camera[1]))
         ]
-        return (max(0,min(self.screenSize[0], pos[0])),
-                max(0,min(self.screenSize[1], pos[1])))
+        return (max(0,min(self.pixels[0], pos[0])),
+                max(0,min(self.pixels[1], pos[1])))
 
 def get_face(detector, img_queue, result_queue):
     """Get face from image queue. This function is used for multiprocessing"""
