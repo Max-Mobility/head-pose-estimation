@@ -24,6 +24,7 @@ import numpy as np
 import pyautogui
 import cv2
 
+import utils
 from gaze_estimator import GazeEstimator
 from segmenter import Segmenter
 
@@ -57,12 +58,12 @@ class Screen:
         return (max(0,min(self.screenSize[0], pos[0])),
                 max(0,min(self.screenSize[1], pos[1])))
 
-def get_face(detector, img_queue, box_queue):
+def get_face(detector, img_queue, result_queue):
     """Get face from image queue. This function is used for multiprocessing"""
     while True:
         image = img_queue.get()
-        boxes = detector(image, 0)
-        box_queue.put(boxes)
+        result = detector.run(image, 0)
+        result_queue.put(result)
 
 
 def main():
@@ -73,6 +74,8 @@ def main():
 
     # construct the argument parse and parse the arguments
     ap = argparse.ArgumentParser()
+    ap.add_argument("-c", "--draw-confidence", action="store_true", default=False,
+                    help="draw the confidence on the face")
     ap.add_argument("-m", "--draw-markers", action="store_true", default=False,
                     help="draw the 5 face landmarks")
     ap.add_argument("-s", "--draw-segmented", action="store_true", default=False,
@@ -119,16 +122,16 @@ def main():
 
     # Setup process and queues for multiprocessing.
     img_queue = Queue()
-    box_queue = Queue()
+    result_queue = Queue()
     #img_queue.put(sample_frame)
 
     if isWindows():
-        thread = threading.Thread(target=get_face, args=(detector, img_queue, box_queue))
+        thread = threading.Thread(target=get_face, args=(detector, img_queue, result_queue))
         thread.daemon = True
         thread.start()
     else:
         box_process = Process(target=get_face,
-                              args=(detector, img_queue, box_queue))
+                              args=(detector, img_queue, result_queue))
         box_process.start()
 
     detectorWidth = 400
@@ -149,36 +152,22 @@ def main():
             frame = cv2.flip(frame, 2)
 
         # Feed frame to image queue.
-        image = imutils.resize(frame, width=400)
+        image = imutils.resize(frame, width=detectorWidth)
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         img_queue.put(gray)
 
         # Get face from box queue.
-        boxes = box_queue.get()
-
-        def get_box(box):
-            # scales the box back to the size of the image, keeping
-            # the box's center
-            b = face_utils.rect_to_bb(box)
-            [x1, y1, bW, bH] = b
-            dW = bW * factor * faceBoxScale / 2
-            dH = bH * factor * faceBoxScale / 2
-            x2 = int((x1 + bW)*factor + dW)
-            y2 = int((y1 + bH)*factor + dH)
-            x1 = int(x1*factor - dW)
-            y1 = int(y1*factor - dH)
-            return [x1, y1, x2, y2]
-
-        def draw_box(img, box, color=(0,255,0)):
-            [x1, y1, x2, y2] = box
-            cv2.rectangle(img, (x1, y1), (x2, y2), color, 1)
+        results = result_queue.get()
+        # unpack results
+        boxes, scores, idx = results
 
         if boxes is not None and len(boxes) > 0:
             # determine the facial landmarks for the face region, then
             # convert the facial landmark (x, y)-coordinates to a NumPy
             # array
-            rect = boxes[0]
-            shape = predictor(gray, rect)
+            facebox = boxes[0]
+            confidence = scores[0]
+            shape = predictor(gray, facebox)
             shape = face_utils.shape_to_np(shape)
             # loop over the (x, y)-coordinates for the facial landmarks
             # and draw each of them
@@ -195,18 +184,25 @@ def main():
                     cv2.putText(frame, str(i + 1), (x - 10, y - 10),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 0, 255), 1)
 
+            # convert the facebox from dlib format to regular BB and
+            # rescale it back to original image size
+            facebox = utils.dlib_to_box(facebox, factor, faceBoxScale)
+            #draw the confidence
+            if args["draw_confidence"]:
+                [x,y,_,_] = facebox
+                cv2.putText(frame, str(confidence), (x - 10, y - 10),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 0, 255), 1)
             # segment the image based on markers and facebox
-            rect = get_box(rect)
-            seg = Segmenter(rect, leftEyeMarks, rightEyeMarks, frame.shape[1], frame.shape[0])
+            seg = Segmenter(facebox, leftEyeMarks, rightEyeMarks, frame.shape[1], frame.shape[0])
             segments = seg.getSegmentJSON()
-            if args["draw_segmented"]:
-                draw_box(frame, segments["leftEye"])
-                draw_box(frame, segments["rightEye"])
-                draw_box(frame, segments["face"])
+            if segments is not None and args["draw_segmented"]:
+                utils.draw_box(frame, segments["leftEye"])
+                utils.draw_box(frame, segments["rightEye"])
+                utils.draw_box(frame, segments["face"])
                 #cv2.imshow("fg", segments["faceGrid"])
 
             # detect gaze
-            if args["detect_gaze"]:
+            if segments is not None and args["detect_gaze"]:
                 gaze = gaze_detector.detect_gaze(
                     frame,
                     segments["leftEye"],

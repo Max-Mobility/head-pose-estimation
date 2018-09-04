@@ -5,7 +5,9 @@ detect_os()
 import json
 import numpy as np
 import cv2
-from mark_detector import MarkDetector
+from imutils import face_utils
+
+import utils
 
 # starts in left (right on person) corner and goes clockwise
 reIndices = [37,38,39,40,41,42]
@@ -49,7 +51,7 @@ class Segmenter:
             min(np.max(x) + px, self.width),
             min(np.max(y) + py, self.height)
         ]
-        return MarkDetector.get_square_box([int(x) for x in bbox], [self.height, self.width])
+        return utils.get_square_box([int(x) for x in bbox], [self.height, self.width])
 
     def getEyeBB(self, marks):
         return self.makeBB(marks, 10, 0)
@@ -310,7 +312,6 @@ def main():
     import queue as Q
     from multiprocessing import Process, Queue
     import threading
-    from pose_estimator import PoseEstimator
 
     # parse arguments
     ap = argparse.ArgumentParser()
@@ -327,15 +328,18 @@ def main():
     args = vars(ap.parse_args())
 
     # init shared variables
-    CNN_INPUT_SIZE = 128
     output_prefix = args["output_prefix"]
     conf_threshold = args["confidence_threshold"]
     use_confidence = args["use_confidence"]
+    detectorWidth = 400
+    faceBoxScale = 0.15
 
     def process_subject(done_queue, sub_queue):
         """Get subject from subject queue. This function is used for multiprocessing"""
         # init process/thread variables
-        detector = MarkDetector()
+        print("[INFO] loading facial landmark predictor...")
+        detector = dlib.get_frontal_face_detector()
+        predictor = dlib.shape_predictor('./model/shape_predictor_5_face_landmarks.dat')
         timeout = 1 # 1 second timeout waiting for more subjects
         while True:
             try:
@@ -374,40 +378,39 @@ def main():
                     framePath = subjectPath + "/frames/" + frame
                     # load image data
                     image = subject.getImage(framePath)
-                    result = detector.extract_cnn_facebox(image, conf_threshold)
+                    originalWidth = image.shape[1]
+                    factor = originalWidth / detectorWidth
+                    frame = imutils.resize(image, width=detectorWidth)
+                    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                    dets, scores, idx = detector.run(gray, 0, -1)
 
-                    if result is not None:
-                        # unpack result
-                        facebox, confidence = result
-
+                    if dets is not None and len(dets) > 0:
+                        facebox = dets[0]
+                        confidence = scores[0]
                         try:
-                            # fix facebox if needed
-                            if facebox[1] > facebox[3]:
-                                facebox[1] = 0
-                            if facebox[0] > facebox[2]:
-                                facebox[0] = 0
-                            # Detect landmarks from image of 128x128.
-                            face_img = image[facebox[1]: facebox[3],
-                                             facebox[0]: facebox[2]]
-                            face_img = cv2.resize(face_img, (CNN_INPUT_SIZE, CNN_INPUT_SIZE))
-                            face_img = cv2.cvtColor(face_img, cv2.COLOR_BGR2RGB)
-                            marks = detector.detect_marks(face_img)
+                            shape = predictor(gray, facebox)
+                            shape = face_utils.shape_to_np(shape)
+                            # loop over the (x, y)-coordinates for the facial landmarks
+                            # and draw each of them
+                            leftEyeMarks = []
+                            rightEyeMarks = []
+                            for (i, (x, y)) in enumerate(shape):
+                                [x,y] = [int(x*factor),int(y*factor)]
+                                if i == 0 or i ==1:
+                                    leftEyeMarks.append([x,y])
+                                if i == 2 or i ==3:
+                                    rightEyeMarks.append([x,y])
 
-                            # Convert the marks locations from local CNN to global image.
-                            marks *= (facebox[2] - facebox[0])
-                            marks[:, 0] += facebox[0]
-                            marks[:, 1] += facebox[1]
-
-                            width = image.shape[0]
-                            height = image.shape[1]
                             # segment the image based on markers and facebox
-                            seg = Segmenter(facebox, marks, width, height)
+                            facebox = utils.dlib_to_box(facebox, factor, faceBoxScale)
+                            seg = Segmenter(
+                                facebox,
+                                leftEyeMarks,
+                                rightEyeMarks,
+                                image.shape[1],
+                                image.shape[0]
+                            )
                             segmentJSON = seg.getSegmentJSON()
-
-                            # Try pose estimation with 68 points.
-                            pose_estimator = PoseEstimator(img_size=(height, width))
-                            pose = pose_estimator.solve_pose_by_68_points(marks)
-                            pose = [float(item) for sublist in pose for item in sublist]
                         except cv2.error as inst:
                             print("Error processing subject:", subjectID,'frame:', i, inst)
                 # add segment data to subject
