@@ -31,9 +31,9 @@ from segmenter import Segmenter
 class Screen:
     availableDisplays = {
         'Surface Pro 4': {
-            'camera': [17.0, -0.7],
-            'size': [22.0, 14.0],
-            'coordFactors': [1.4, 1.5]
+            'camera': [10.0, 1.0],
+            'size': [20.0, 15.0],
+            'coordFactors': [1.0, 1.0]
         },
         'Surface Book': {
             'camera': [14.25, -0.75],
@@ -67,8 +67,8 @@ class Screen:
 
     def cm2Px(self, coords):
         pos = [
-            round(self.conversion[0]*(coords[0] * self.coordFactors[0] + self.camera[0])),
-            round(self.conversion[1]*(-1*coords[1] * self.coordFactors[1] + self.camera[1]))
+            round(self.conversion[0]*((coords[0]+3.0) * self.coordFactors[0] + self.camera[0])),
+            round(self.conversion[1]*(-coords[1] * self.coordFactors[1] + self.camera[1]))
         ]
         return (max(0,min(self.pixels[0], pos[0])),
                 max(0,min(self.pixels[1], pos[1])))
