@@ -39,20 +39,22 @@ class Screen:
             'size': [28.5, 19.0]
         },
         'Desktop': {
-            'camera': [18.0, -1.5],
+            'camera': [12.5, -1.5],
             'size': [25.0, 15.0]
         }
     }
     def __init__(self, display="Surface Pro 4"):
-        self.screenSize = pyautogui.size()
+        # make sure we have a valid display
         if display is None or display not in self.availableDisplays.keys():
             raise ValueError("Bad screen provided, must be one of {}".format(list(self.availableDisplays.keys())))
-        #Define camera and screen parameters
+        # get the size of the screen (pixels)
+        self.screenSize = pyautogui.size()
+        # Define camera and screen parameters
         self.xCameraOffsetCm = self.availableDisplays[display]['camera'][0]
         self.yCameraOffsetCm = self.availableDisplays[display]['camera'][1]
         self.wScreenCm = self.availableDisplays[display]['size'][0]
         self.hScreenCm = self.availableDisplays[display]['size'][1]
-        #Conversion factors to scale centimeters to screen pixels
+        # Conversion factors to scale centimeters to screen pixels
         self.xCm2Px = self.screenSize[0]/self.wScreenCm
         self.yCm2Px = self.screenSize[1]/self.hScreenCm
 
