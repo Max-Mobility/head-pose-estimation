@@ -32,15 +32,18 @@ class Screen:
     availableDisplays = {
         'Surface Pro 4': {
             'camera': [13.0, -0.7],
-            'size': [26.0, 17.5]
+            'size': [26.0, 17.5],
+            'coordFactor': 1.0
         },
         'Surface Book': {
             'camera': [14.25, -0.75],
-            'size': [28.5, 19.0]
+            'size': [28.5, 19.0],
+            'coordFactor': 1.0
         },
         'Desktop': {
-            'camera': [15.0, -1.5],
-            'size': [60.0, 15.0]
+            'camera': [18.0, -1.5],
+            'size': [62.0, 15.0],
+            'coordFactor': 1.0
         }
     }
     def __init__(self, display="Surface Pro 4"):
@@ -57,12 +60,12 @@ class Screen:
         # Conversion factors to scale centimeters to screen pixels
         self.xCm2Px = self.screenSize[0]/self.wScreenCm
         self.yCm2Px = self.screenSize[1]/self.hScreenCm
+        self.coordFactor = self.availableDisplays[display]['coordFactor']
 
     def cm2Px(self, coords):
-        factor = 1.2
         pos = [
-            round(self.xCm2Px*(coords[0] * factor + self.xCameraOffsetCm)),
-            round(self.yCm2Px*(-1*coords[1] * factor + self.yCameraOffsetCm))
+            round(self.xCm2Px*(coords[0] * self.coordFactor + self.xCameraOffsetCm)),
+            round(self.yCm2Px*(-1*coords[1] * self.coordFactor + self.yCameraOffsetCm))
         ]
         return (max(0,min(self.screenSize[0], pos[0])),
                 max(0,min(self.screenSize[1], pos[1])))
