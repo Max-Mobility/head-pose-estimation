@@ -10,23 +10,15 @@ from os_detector import detect_os, isWindows
 # multiprocessing may not work on Windows and macOS, check OS for safety.
 detect_os()
 
+import queue as Q
 from multiprocessing import Process, Queue
 import threading
 
-from imutils import face_utils
-from imutils.video import VideoStream
-import dlib
 import argparse
-import imutils
 import time
-import numpy as np
 
 import pyautogui
 import cv2
-
-import utils
-from gaze_estimator import GazeEstimator
-from segmenter import Segmenter
 
 class Screen:
     availableDisplays = {
@@ -73,12 +65,89 @@ class Screen:
         return (max(0,min(self.pixels[0], pos[0])),
                 max(0,min(self.pixels[1], pos[1])))
 
-def get_face(detector, img_queue, result_queue):
+def thread_func(args, img_queue, result_queue):
     """Get face from image queue. This function is used for multiprocessing"""
+
+    import dlib
+    import imutils
+    from imutils import face_utils
+
+    import utils
+    from gaze_estimator import GazeEstimator
+    from segmenter import Segmenter
+
+    # Introduce mark_detector to detect landmarks.
+    gaze_model = args["gaze_net"]
+    eye_size = args["eye_size"]
+    face_size = args["face_size"]
+    inputs = args["inputs"]
+    outputs = args["outputs"]
+    print("[INFO] loading gaze predictor...")
+    gaze_detector = GazeEstimator(
+        gaze_model=gaze_model,
+        eye_image_size=eye_size,
+        face_image_size=face_size,
+        inputs=inputs,
+        outputs=outputs
+    )
+
+    print("[INFO] loading facial landmark predictor...")
+    detector = dlib.get_frontal_face_detector()
+    predictor = dlib.shape_predictor(args["shape_predictor"])
+
+    # init variables
+    detectorWidth = 400
+    faceBoxScale = 0.15
+    flip = True
+
     while True:
-        image = img_queue.get()
-        result = detector.run(image, 0)
-        result_queue.put(result)
+        # get the image
+        frame = img_queue.get()
+        # update factors
+        originalWidth = frame.shape[1]
+        factor = originalWidth / detectorWidth
+        # resize for face detection
+        image = imutils.resize(frame, width=detectorWidth)
+        # convert to grayscale for face detection
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        # actually run face detection
+        faceboxes, scores, idx = detector.run(image, 0)
+        if faceboxes is not None and len(faceboxes) > 0:
+            facebox = faceboxes[0]
+            confidence = scores[0]
+            # get 5 landmarks
+            marks = predictor(gray, facebox)
+            # convert marks to np array
+            marks = face_utils.shape_to_np(marks)
+            leftEyeMarks = []
+            rightEyeMarks = []
+            # pull out left and right eye marks
+            for (i, (x, y)) in enumerate(marks):
+                [x,y] = [int(x*factor),int(y*factor)]
+                if i == 0 or i ==1:
+                    leftEyeMarks.append([x,y])
+                if i == 2 or i ==3:
+                    rightEyeMarks.append([x,y])
+
+            # convert the facebox from dlib format to regular BB and
+            # rescale it back to original image size
+            facebox = utils.dlib_to_box(facebox, factor, faceBoxScale)
+            # segment the image based on markers and facebox
+            seg = Segmenter(facebox, leftEyeMarks, rightEyeMarks, frame.shape[1], frame.shape[0])
+            segments = seg.getSegmentJSON()
+            # detect gaze
+            gaze = gaze_detector.detect_gaze(
+                frame,
+                segments["leftEye"],
+                segments["rightEye"],
+                segments["face"],
+                segments["faceGrid"]
+            )
+            # pack result
+            result = [gaze, frame]
+            result_queue.put(result)
+        else:
+            result_queue.put(None)
 
 
 def main():
@@ -87,16 +156,10 @@ def main():
 
     # construct the argument parse and parse the arguments
     ap = argparse.ArgumentParser()
+    ap.add_argument("-t", "--num-threads", type=int, default=2,
+                    help="number of threads for detecting gaze")
     ap.add_argument("-v", "--video-src", type=int, default=0,
                     help="video source index")
-    ap.add_argument("-c", "--draw-confidence", action="store_true", default=False,
-                    help="draw the confidence on the face")
-    ap.add_argument("-m", "--draw-markers", action="store_true", default=False,
-                    help="draw the 5 face landmarks")
-    ap.add_argument("-s", "--draw-segmented", action="store_true", default=False,
-                    help="draw the eye and face bounding boxes")
-    ap.add_argument("-d", "--detect-gaze", action="store_true", default=False,
-                    help="enable gaze detection")
     ap.add_argument("-g", "--gaze-net", type=str, default='model/mobileNet.pb',
                     help="path to frozen gaze predictor model")
     ap.add_argument("-r", "--screen", type=str, default='Surface Pro 4',
@@ -116,10 +179,8 @@ def main():
 
     screen = Screen(args["screen"])
 
-    print("[INFO] loading facial landmark predictor...")
-    detector = dlib.get_frontal_face_detector()
-    predictor = dlib.shape_predictor(args["shape_predictor"])
-
+    # set up multiprocessing
+    num_threads = args["num_threads"]
 
     # Video source from webcam or video file.
     video_src = args["video_src"]
@@ -131,38 +192,23 @@ def main():
         print("Exiting!")
         return
 
-    # Introduce mark_detector to detect landmarks.
-    gaze_model = args["gaze_net"]
-    eye_size = args["eye_size"]
-    face_size = args["face_size"]
-    inputs = args["inputs"]
-    outputs = args["outputs"]
-    gaze_detector = GazeEstimator(
-        gaze_model=gaze_model,
-        eye_image_size=eye_size,
-        face_image_size=face_size,
-        inputs=inputs,
-        outputs=outputs
-    )
-
     # Setup process and queues for multiprocessing.
     img_queue = Queue()
     result_queue = Queue()
-    #img_queue.put(sample_frame)
+    tids = []
 
     if isWindows():
-        thread = threading.Thread(target=get_face, args=(detector, img_queue, result_queue))
-        thread.daemon = True
-        thread.start()
+        for i in range(num_threads):
+            thread = threading.Thread(target=thread_func, args=(args, img_queue, result_queue))
+            thread.daemon = True
+            thread.start()
     else:
-        box_process = Process(target=get_face,
-                              args=(detector, img_queue, result_queue))
-        box_process.start()
+        for i in range(num_threads):
+            box_process = Process(target=thread_func,
+                                  args=(args, img_queue, result_queue))
+            box_process.start()
+            tids.append(box_process)
 
-    detectorWidth = 400
-    originalWidth = sample_frame.shape[1]
-    factor = originalWidth / detectorWidth
-    faceBoxScale = 0.15
     flip = True
     # performance measurements
     numFrames = 0
@@ -178,71 +224,25 @@ def main():
             frame = cv2.flip(frame, 2)
 
         # Feed frame to image queue.
-        image = imutils.resize(frame, width=detectorWidth)
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        img_queue.put(gray)
+        if img_queue.qsize() < num_threads:
+            img_queue.put(frame)
 
-        # Get face from box queue.
-        results = result_queue.get()
-        # unpack results
-        boxes, scores, idx = results
-
-        if boxes is not None and len(boxes) > 0:
-            # determine the facial landmarks for the face region, then
-            # convert the facial landmark (x, y)-coordinates to a NumPy
-            # array
-            facebox = boxes[0]
-            confidence = scores[0]
-            shape = predictor(gray, facebox)
-            shape = face_utils.shape_to_np(shape)
-            # loop over the (x, y)-coordinates for the facial landmarks
-            # and draw each of them
-            leftEyeMarks = []
-            rightEyeMarks = []
-            for (i, (x, y)) in enumerate(shape):
-                [x,y] = [int(x*factor),int(y*factor)]
-                if i == 0 or i ==1:
-                    leftEyeMarks.append([x,y])
-                if i == 2 or i ==3:
-                    rightEyeMarks.append([x,y])
-                if args["draw_markers"]:
-                    cv2.circle(frame, (x, y), 1, (0, 0, 255), -1)
-                    cv2.putText(frame, str(i + 1), (x - 10, y - 10),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 0, 255), 1)
-
-            # convert the facebox from dlib format to regular BB and
-            # rescale it back to original image size
-            facebox = utils.dlib_to_box(facebox, factor, faceBoxScale)
-            #draw the confidence
-            if args["draw_confidence"]:
-                [x,y,_,_] = facebox
-                cv2.putText(frame, str(confidence), (x - 10, y - 10),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 0, 255), 1)
-            # segment the image based on markers and facebox
-            seg = Segmenter(facebox, leftEyeMarks, rightEyeMarks, frame.shape[1], frame.shape[0])
-            segments = seg.getSegmentJSON()
-            if segments is not None and args["draw_segmented"]:
-                utils.draw_box(frame, segments["leftEye"])
-                utils.draw_box(frame, segments["rightEye"])
-                utils.draw_box(frame, segments["face"])
-
-            # detect gaze
-            if segments is not None and args["detect_gaze"]:
-                gaze = gaze_detector.detect_gaze(
-                    frame,
-                    segments["leftEye"],
-                    segments["rightEye"],
-                    segments["face"],
-                    segments["faceGrid"]
-                )
+        try:
+            result = result_queue.get(timeout=0.05)
+            if result is not None:
+                # unpack result
+                gaze, frame = result
                 if flip:
                     gaze[0] = -gaze[0]
                 #print(gaze)
                 x,y = screen.cm2Px(gaze)
                 #print((x,y))
                 pyautogui.moveTo(x,y)
-        # increment frame counter for performance measurements
-        numFrames += 1
+                # increment frame counter for performance measurements
+                numFrames += 1
+        except Q.Empty as inst:
+            pass
+
         # Show preview.
         cv2.imshow("Preview", frame)
         if cv2.waitKey(1) == 27: # sadly adds 1 ms of wait :(
@@ -251,12 +251,13 @@ def main():
     end = time.time()
     diff = end - start
     print("Elapsed time:", diff)
-    print("FPS:",numFrames/diff)
+    print("FPS:", numFrames / diff)
 
     # Clean up the multiprocessing process.
     if not isWindows():
-        box_process.terminate()
-        box_process.join()
+        for tid in tids:
+            tid.terminate()
+            tid.join()
 
 
 if __name__ == '__main__':
