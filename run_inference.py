@@ -14,11 +14,23 @@ import queue as Q
 from multiprocessing import Process, Queue
 import threading
 
+import sys
 import argparse
 import time
 
+import dlib
 import pyautogui
 import cv2
+
+import imutils
+from imutils import face_utils
+
+import utils
+from segmenter import Segmenter
+
+from gaze_estimator import GazeEstimator
+
+flip = True
 
 class Screen:
     availableDisplays = {
@@ -65,44 +77,20 @@ class Screen:
         return (max(0,min(self.pixels[0], pos[0])),
                 max(0,min(self.pixels[1], pos[1])))
 
-def thread_func(args, img_queue, result_queue):
+def thread_func(gaze_detector, detector, predictor, img_queue, result_queue):
     """Get face from image queue. This function is used for multiprocessing"""
-
-    import dlib
-    import imutils
-    from imutils import face_utils
-
-    import utils
-    from gaze_estimator import GazeEstimator
-    from segmenter import Segmenter
-
-    # Introduce mark_detector to detect landmarks.
-    gaze_model = args["gaze_net"]
-    eye_size = args["eye_size"]
-    face_size = args["face_size"]
-    inputs = args["inputs"]
-    outputs = args["outputs"]
-    print("[INFO] loading gaze predictor...")
-    gaze_detector = GazeEstimator(
-        gaze_model=gaze_model,
-        eye_image_size=eye_size,
-        face_image_size=face_size,
-        inputs=inputs,
-        outputs=outputs
-    )
-
-    print("[INFO] loading facial landmark predictor...")
-    detector = dlib.get_frontal_face_detector()
-    predictor = dlib.shape_predictor(args["shape_predictor"])
 
     # init variables
     detectorWidth = 400
     faceBoxScale = 0.15
-    flip = True
 
     while True:
         # get the image
-        frame = img_queue.get()
+        try:
+            frame = img_queue.get(timeout=1)
+        except Q.Empty:
+            print("Image Q empty, thread exiting!")
+            return
         # update factors
         originalWidth = frame.shape[1]
         factor = originalWidth / detectorWidth
@@ -179,6 +167,26 @@ def main():
 
     screen = Screen(args["screen"])
 
+    # Introduce mark_detector to detect landmarks.
+    gaze_model = args["gaze_net"]
+    eye_size = args["eye_size"]
+    face_size = args["face_size"]
+    inputs = args["inputs"]
+    outputs = args["outputs"]
+    print("[INFO] loading gaze predictor...")
+    gaze_detector = GazeEstimator(
+        gaze_model=gaze_model,
+        eye_image_size=eye_size,
+        face_image_size=face_size,
+        inputs=inputs,
+        outputs=outputs
+    )
+
+    # set up detector, predictor from dlib
+    print("[INFO] loading facial landmark predictor...")
+    detector = dlib.get_frontal_face_detector()
+    predictor = dlib.shape_predictor(args["shape_predictor"])
+
     # set up multiprocessing
     num_threads = args["num_threads"]
 
@@ -197,19 +205,21 @@ def main():
     result_queue = Queue()
     tids = []
 
-    if isWindows():
-        for i in range(num_threads):
-            thread = threading.Thread(target=thread_func, args=(args, img_queue, result_queue))
-            thread.daemon = True
-            thread.start()
-    else:
-        for i in range(num_threads):
-            box_process = Process(target=thread_func,
-                                  args=(args, img_queue, result_queue))
-            box_process.start()
-            tids.append(box_process)
+    # create the threads
+    for i in range(num_threads):
+        if isWindows():
+            thread = threading.Thread(target=thread_func,
+                                      args=(gaze_detector, detector, predictor, img_queue, result_queue))
+            thread.setDaemon(True)
+        else:
+            thread = Process(target=thread_func,
+                             args=(gaze_detector, detector, predictor, img_queue, result_queue))
+        tids.append(thread)
 
-    flip = True
+    # start the threads
+    for tid in tids:
+        tid.start()
+
     # performance measurements
     numFrames = 0
     start = time.time()
@@ -243,22 +253,24 @@ def main():
         except Q.Empty as inst:
             pass
 
-        # Show preview.
+        # Show preview. - needed for cv2.waitKey() to work!
         cv2.imshow("Preview", frame)
         if cv2.waitKey(1) == 27: # sadly adds 1 ms of wait :(
             break
 
+    # compute FPS and print
     end = time.time()
     diff = end - start
     print("Elapsed time:", diff)
     print("FPS:", numFrames / diff)
 
     # Clean up the multiprocessing process.
-    if not isWindows():
-        for tid in tids:
+    for tid in tids:
+        if not isWindows():
             tid.terminate()
-            tid.join()
+        tid.join()
 
+    print("All threads have finished, process exiting!")
 
 if __name__ == '__main__':
     main()
