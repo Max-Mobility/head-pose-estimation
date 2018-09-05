@@ -77,8 +77,23 @@ class Screen:
         return (max(0,min(self.pixels[0], pos[0])),
                 max(0,min(self.pixels[1], pos[1])))
 
-def thread_func(gaze_detector, detector, predictor, img_queue, result_queue):
+def thread_func(args, detector, predictor, img_queue, result_queue):
     """Get face from image queue. This function is used for multiprocessing"""
+
+    # Introduce mark_detector to detect landmarks.
+    gaze_model = args["gaze_net"]
+    eye_size = args["eye_size"]
+    face_size = args["face_size"]
+    inputs = args["inputs"]
+    outputs = args["outputs"]
+    print("[INFO] loading gaze predictor...")
+    gaze_detector = GazeEstimator(
+        gaze_model=gaze_model,
+        eye_image_size=eye_size,
+        face_image_size=face_size,
+        inputs=inputs,
+        outputs=outputs
+    )
 
     # init variables
     detectorWidth = 400
@@ -167,21 +182,6 @@ def main():
 
     screen = Screen(args["screen"])
 
-    # Introduce mark_detector to detect landmarks.
-    gaze_model = args["gaze_net"]
-    eye_size = args["eye_size"]
-    face_size = args["face_size"]
-    inputs = args["inputs"]
-    outputs = args["outputs"]
-    print("[INFO] loading gaze predictor...")
-    gaze_detector = GazeEstimator(
-        gaze_model=gaze_model,
-        eye_image_size=eye_size,
-        face_image_size=face_size,
-        inputs=inputs,
-        outputs=outputs
-    )
-
     # set up detector, predictor from dlib
     print("[INFO] loading facial landmark predictor...")
     detector = dlib.get_frontal_face_detector()
@@ -209,11 +209,11 @@ def main():
     for i in range(num_threads):
         if isWindows():
             thread = threading.Thread(target=thread_func,
-                                      args=(gaze_detector, detector, predictor, img_queue, result_queue))
+                                      args=(args, detector, predictor, img_queue, result_queue))
             thread.setDaemon(True)
         else:
             thread = Process(target=thread_func,
-                             args=(gaze_detector, detector, predictor, img_queue, result_queue))
+                             args=(args, detector, predictor, img_queue, result_queue))
         tids.append(thread)
 
     # start the threads
